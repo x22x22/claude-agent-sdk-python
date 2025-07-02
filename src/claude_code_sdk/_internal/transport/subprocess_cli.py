@@ -36,6 +36,7 @@ class SubprocessCLITransport(Transport):
         self._process: Process | None = None
         self._stdout_stream: TextReceiveStream | None = None
         self._stderr_stream: TextReceiveStream | None = None
+        self._received_any_output = False
 
     def _find_cli(self) -> str:
         """Find Claude Code CLI binary."""
@@ -75,6 +76,10 @@ class SubprocessCLITransport(Transport):
     def _build_command(self) -> list[str]:
         """Build CLI command with arguments."""
         cmd = [self._cli_path, "--output-format", "stream-json", "--verbose"]
+        
+        # Add debug flag when using bypassPermissions to capture permission warnings
+        if self._options.permission_mode == "bypassPermissions":
+            cmd.append("--debug")
 
         if self._options.system_prompt:
             cmd.extend(["--system-prompt", self._options.system_prompt])
@@ -129,7 +134,7 @@ class SubprocessCLITransport(Transport):
                 stdout=PIPE,
                 stderr=PIPE,
                 cwd=self._cwd,
-                env={**os.environ, "CLAUDE_CODE_ENTRYPOINT": "sdk-py"},
+                env={**os.environ, "CLAUDE_CODE_ENTRYPOINT": "sdk-cli"},
             )
 
             if self._process.stdout:
@@ -214,6 +219,7 @@ class SubprocessCLITransport(Transport):
                         try:
                             data = json.loads(json_buffer)
                             json_buffer = ""
+                            self._received_any_output = True
                             try:
                                 yield data
                             except GeneratorExit:
@@ -225,14 +231,68 @@ class SubprocessCLITransport(Transport):
                 pass
 
         await self._process.wait()
-        if self._process.returncode is not None and self._process.returncode != 0:
-            stderr_output = "\n".join(stderr_lines)
-            if stderr_output and "error" in stderr_output.lower():
+        stderr_output = "\n".join(stderr_lines)
+        
+        # First check for specific error messages in stderr
+        if self._options.permission_mode == "bypassPermissions":
+            # Check for known bypassPermissions issues
+            if "cannot be used with root/sudo privileges" in stderr_output:
                 raise ProcessError(
-                    "CLI process failed",
-                    exit_code=self._process.returncode,
+                    "bypassPermissions mode cannot be used when running as root/sudo. "
+                    "This is a security restriction in Claude Code. To fix this:\n"
+                    "1. Run as a non-root user, or\n"
+                    "2. Use permission_mode='acceptEdits' instead",
+                    exit_code=self._process.returncode or 0,
                     stderr=stderr_output,
                 )
+            
+            if "bypassPermissions mode is disabled" in stderr_output:
+                raise ProcessError(
+                    "bypassPermissions mode is disabled by Claude Code settings. "
+                    "The CLI will fall back to default permissions which requires user input, "
+                    "but the SDK runs without stdin. To fix this, either:\n"
+                    "1. Enable bypassPermissions in your Claude Code settings, or\n"
+                    "2. Use permission_mode='acceptEdits' instead",
+                    exit_code=self._process.returncode or 0,
+                    stderr=stderr_output,
+                )
+        
+        # Then check for the general "no output" case
+        if not self._received_any_output:
+            # This can happen for various reasons depending on permission mode
+            permission_mode = self._options.permission_mode or "default"
+            
+            if permission_mode == "bypassPermissions":
+                # Special handling for bypassPermissions silent failures
+                raise ProcessError(
+                    "Claude Code CLI terminated without producing any output when using "
+                    "bypassPermissions mode. This can happen when:\n"
+                    "1. Running as root/sudo (security restriction)\n"
+                    "2. bypassPermissions is disabled in settings\n"
+                    "3. Other security restrictions are in place\n\n"
+                    "Try using permission_mode='acceptEdits' instead, which is "
+                    "the recommended mode for SDK usage.",
+                    exit_code=self._process.returncode or 0,
+                    stderr=stderr_output if stderr_output else None,
+                )
+            elif permission_mode == "default":
+                raise ProcessError(
+                    "Claude Code CLI appears to have terminated without output. "
+                    "This often happens when the CLI is waiting for interactive "
+                    "permission prompts that cannot be answered in SDK mode. "
+                    "Try using permission_mode='acceptEdits' or 'bypassPermissions'.",
+                    exit_code=self._process.returncode or 0,
+                    stderr=stderr_output if stderr_output else None,
+                )
+        
+        # Finally, handle any other non-zero exit codes
+        if self._process.returncode is not None and self._process.returncode != 0:
+            # Always raise an error for non-zero exit codes
+            raise ProcessError(
+                f"CLI process failed with exit code {self._process.returncode}",
+                exit_code=self._process.returncode,
+                stderr=stderr_output if stderr_output else None,
+            )
 
     def is_connected(self) -> bool:
         """Check if subprocess is running."""
