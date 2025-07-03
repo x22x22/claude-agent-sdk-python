@@ -143,13 +143,13 @@ class TestSubprocessCLITransport:
 
         cmd = transport._build_command()
         assert "--strict-mcp-config" in cmd
-        
+
         # Test that flag is not present when False
         transport_no_strict = SubprocessCLITransport(
             prompt="test",
             options=ClaudeCodeOptions(strict_mcp_config=False),
             cli_path="/usr/bin/claude",
         )
-        
+
         cmd_no_strict = transport_no_strict._build_command()
         assert "--strict-mcp-config" not in cmd_no_strict

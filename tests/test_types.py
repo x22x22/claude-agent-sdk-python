@@ -69,6 +69,7 @@ class TestOptions:
         assert options.permission_mode is None
         assert options.continue_conversation is False
         assert options.disallowed_tools == []
+        assert options.strict_mcp_config is False
 
     def test_claude_code_options_with_tools(self):
         """Test Options with built-in tools."""
@@ -105,12 +106,3 @@ class TestOptions:
         )
         assert options.model == "claude-3-5-sonnet-20241022"
         assert options.permission_prompt_tool_name == "CustomTool"
-
-    def test_claude_code_options_with_strict_mcp_config(self):
-        """Test Options with strict MCP config."""
-        options = ClaudeCodeOptions(strict_mcp_config=True)
-        assert options.strict_mcp_config is True
-        
-        # Test default value
-        default_options = ClaudeCodeOptions()
-        assert default_options.strict_mcp_config is False
