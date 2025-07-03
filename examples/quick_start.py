@@ -65,11 +65,42 @@ async def with_tools_example():
     print()
 
 
+async def with_strict_mcp_config_example():
+    """Example using strict MCP configuration."""
+    print("=== Strict MCP Config Example ===")
+    
+    # This ensures ONLY the MCP servers specified here will be used,
+    # ignoring any global or project-level MCP configurations
+    options = ClaudeCodeOptions(
+        mcp_servers={
+            "memory-server": {
+                "command": "npx",
+                "args": ["@modelcontextprotocol/server-memory"],
+            }
+        },
+        strict_mcp_config=True,  # Ignore all file-based MCP configurations
+    )
+    
+    async for message in query(
+        prompt="List the available MCP tools from the memory server",
+        options=options,
+    ):
+        if isinstance(message, AssistantMessage):
+            for block in message.content:
+                if isinstance(block, TextBlock):
+                    print(f"Claude: {block.text}")
+        elif isinstance(message, ResultMessage):
+            print(f"\nResult: {message.subtype}")
+    print()
+
+
 async def main():
     """Run all examples."""
     await basic_example()
     await with_options_example()
     await with_tools_example()
+    # Note: Uncomment the line below if you have MCP servers configured
+    # await with_strict_mcp_config_example()
 
 
 if __name__ == "__main__":
