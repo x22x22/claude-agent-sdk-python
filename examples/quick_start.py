@@ -68,7 +68,7 @@ async def with_tools_example():
 async def with_strict_mcp_config_example():
     """Example using strict MCP configuration."""
     print("=== Strict MCP Config Example ===")
-    
+
     # This ensures ONLY the MCP servers specified here will be used,
     # ignoring any global or project-level MCP configurations
     options = ClaudeCodeOptions(
@@ -80,7 +80,7 @@ async def with_strict_mcp_config_example():
         },
         strict_mcp_config=True,  # Ignore all file-based MCP configurations
     )
-    
+
     async for message in query(
         prompt="List the available MCP tools from the memory server",
         options=options,
