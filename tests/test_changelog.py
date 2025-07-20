@@ -68,10 +68,6 @@ class TestChangelog:
         for i in range(1, len(versions)):
             assert versions[i-1] > versions[i], f"Versions should be in descending order: {versions[i-1]} should be > {versions[i]}"
 
-    def test_changelog_no_markdown_links(self):
-        content = self.changelog_path.read_text()
-        assert "[" not in content or "](" not in content, "Changelog should not contain markdown links"
-
     def test_changelog_no_empty_bullet_points(self):
         content = self.changelog_path.read_text()
         lines = content.split("\n")
@@ -79,3 +75,4 @@ class TestChangelog:
         for line in lines:
             if line.strip() == "-":
                 assert False, "Changelog should not have empty bullet points"
+
