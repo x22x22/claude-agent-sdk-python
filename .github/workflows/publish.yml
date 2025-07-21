@@ -9,7 +9,7 @@ on:
         description: 'Version to publish (e.g., 0.1.0)'
         required: true
         type: string
-        default: '0.0.15'  # TESTING ONLY - REMOVE BEFORE MERGE
+        default: '0.0.0.dev20250121'  # TESTING ONLY - REMOVE BEFORE MERGE
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -79,7 +79,7 @@ jobs:
     - name: Set version
       id: version
       run: |
-        VERSION="${{ github.event.inputs.version || '0.0.15' }}"  # TESTING ONLY - defaults to 0.0.15
+        VERSION="${{ github.event.inputs.version || '0.0.0.dev20250121' }}"  # TESTING ONLY - defaults to test version
         echo "VERSION=$VERSION" >> $GITHUB_ENV
         echo "version=$VERSION" >> $GITHUB_OUTPUT
     
