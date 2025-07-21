@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.15
+## 0.0.16
 
 - Introduce ClaudeSDKClient for bidirectional streaming conversation
 - Support Message input, not just string prompts, in query()
