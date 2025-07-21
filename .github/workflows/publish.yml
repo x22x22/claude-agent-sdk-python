@@ -1,15 +1,12 @@
 name: Publish to PyPI
 
 on:
-  push:
-    branches: [dickson/version-bump]  # TESTING ONLY - REMOVE BEFORE MERGE
   workflow_dispatch:
     inputs:
       version:
         description: 'Version to publish (e.g., 0.1.0)'
         required: true
         type: string
-        default: '0.0.0.dev20250721'  # TESTING ONLY - REMOVE BEFORE MERGE
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -79,7 +76,7 @@ jobs:
     - name: Set version
       id: version
       run: |
-        VERSION="${{ github.event.inputs.version || '0.0.0.dev20250721' }}"  # TESTING ONLY - defaults to test version
+        VERSION="${{ github.event.inputs.version }}"
         echo "VERSION=$VERSION" >> $GITHUB_ENV
         echo "version=$VERSION" >> $GITHUB_OUTPUT
     
