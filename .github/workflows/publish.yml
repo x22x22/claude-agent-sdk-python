@@ -1,18 +1,15 @@
 name: Publish to PyPI
 
 on:
+  push:
+    branches: [dickson/version-bump]  # TESTING ONLY - REMOVE BEFORE MERGE
   workflow_dispatch:
     inputs:
       version:
         description: 'Version to publish (e.g., 0.1.0)'
         required: true
         type: string
-      test_pypi:
-        description: 'Publish to Test PyPI first'
-        required: false
-        type: boolean
-        default: true
-
+        default: '0.0.15'  # TESTING ONLY - REMOVE BEFORE MERGE
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -79,11 +76,16 @@ jobs:
       with:
         python-version: '3.12'
     
+    - name: Set version
+      id: version
+      run: |
+        VERSION="${{ github.event.inputs.version || '0.0.15' }}"  # TESTING ONLY - defaults to 0.0.15
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+    
     - name: Update version
       run: |
-        # Update version in pyproject.toml
-        sed -i 's/version = ".*"/version = "${{ github.event.inputs.version }}"/' pyproject.toml
-        sed -i 's/__version__ = ".*"/__version__ = "${{ github.event.inputs.version }}"/' src/claude_code_sdk/__init__.py
+        python scripts/update_version.py "${{ env.VERSION }}"
     
     - name: Install build dependencies
       run: |
@@ -96,16 +98,6 @@ jobs:
     - name: Check package
       run: twine check dist/*
     
-    - name: Publish to Test PyPI
-      if: ${{ github.event.inputs.test_pypi == 'true' }}
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
-      run: |
-        twine upload --repository testpypi dist/*
-        echo "Package published to Test PyPI"
-        echo "Install with: pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ claude-code-sdk==${{ github.event.inputs.version }}"
-    
     - name: Publish to PyPI
       env:
         TWINE_USERNAME: __token__
@@ -113,14 +105,14 @@ jobs:
       run: |
         twine upload dist/*
         echo "Package published to PyPI"
-        echo "Install with: pip install claude-code-sdk==${{ github.event.inputs.version }}"
+        echo "Install with: pip install claude-code-sdk==${{ env.VERSION }}"
     
     - name: Create version update PR
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         # Create a new branch for the version update
-        BRANCH_NAME="release/v${{ github.event.inputs.version }}"
+        BRANCH_NAME="release/v${{ env.VERSION }}"
         git checkout -b "$BRANCH_NAME"
         
         # Configure git
@@ -129,25 +121,29 @@ jobs:
         
         # Commit the version changes
         git add pyproject.toml src/claude_code_sdk/__init__.py
-        git commit -m "chore: bump version to ${{ github.event.inputs.version }}"
+        git commit -m "chore: bump version to ${{ env.VERSION }}
+        
+        This PR updates the version to ${{ env.VERSION }} after publishing to PyPI.
+        
+        ## Changes
+        - Updated version in \`pyproject.toml\`
+        - Updated version in \`src/claude_code_sdk/__init__.py\`
+        
+        ## Release Information
+        - Published to PyPI: https://pypi.org/project/claude-code-sdk/${{ env.VERSION }}/
+        - Install with: \`pip install claude-code-sdk==${{ env.VERSION }}\`
+        
+        ## Next Steps
+        After merging this PR, a release tag will be created automatically.
+        
+        Signed-off-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
         
         # Push the branch
         git push origin "$BRANCH_NAME"
         
         # Create PR using GitHub CLI (gh)
         gh pr create \
-          --title "chore: bump version to ${{ github.event.inputs.version }}" \
-          --body "This PR updates the version to ${{ github.event.inputs.version }} after publishing to PyPI.
-          
-          ## Changes
-          - Updated version in \`pyproject.toml\`
-          - Updated version in \`src/claude_code_sdk/__init__.py\`
-          
-          ## Release Information
-          - Published to PyPI: https://pypi.org/project/claude-code-sdk/${{ github.event.inputs.version }}/
-          - Install with: \`pip install claude-code-sdk==${{ github.event.inputs.version }}\`
-          
-          ## Next Steps
-          After merging this PR, a release tag will be created automatically." \
+          --title "chore: bump version to ${{ env.VERSION }}" \
+          --body "Automated PR to update version after PyPI release." \
           --base main \
           --head "$BRANCH_NAME"
