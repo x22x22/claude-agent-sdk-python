@@ -69,7 +69,8 @@ def parse_message(data: dict[str, Any]) -> Message:
                                         is_error=block.get("is_error"),
                                     )
                                 )
-                return UserMessage(content=user_content_blocks)
+                    return UserMessage(content=user_content_blocks)
+                return UserMessage(content=data["message"]["content"])
             except KeyError as e:
                 raise MessageParseError(
                     f"Missing required field in user message: {e}", data
