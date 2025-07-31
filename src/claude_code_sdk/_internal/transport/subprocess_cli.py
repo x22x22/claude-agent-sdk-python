@@ -149,7 +149,7 @@ class SubprocessCLITransport(Transport):
             # Create a temp file for stderr to avoid pipe buffer deadlock
             # We can't use context manager as we need it for the subprocess lifetime
             self._stderr_file = tempfile.NamedTemporaryFile(  # noqa: SIM115
-                mode='w+', prefix='claude_stderr_', suffix='.log', delete=False
+                mode="w+", prefix="claude_stderr_", suffix=".log", delete=False
             )
 
             # Enable stdin pipe for both modes (but we'll close it for string mode)
@@ -354,7 +354,10 @@ class SubprocessCLITransport(Transport):
         # Convert deque to string for error reporting
         stderr_output = "\n".join(list(stderr_lines)) if stderr_lines else ""
         if len(stderr_lines) == stderr_lines.maxlen:
-            stderr_output = f"[stderr truncated, showing last {stderr_lines.maxlen} lines]\n" + stderr_output
+            stderr_output = (
+                f"[stderr truncated, showing last {stderr_lines.maxlen} lines]\n"
+                + stderr_output
+            )
 
         # Use exit code for error detection, not string matching
         if returncode is not None and returncode != 0:
