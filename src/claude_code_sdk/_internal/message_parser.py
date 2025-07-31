@@ -45,7 +45,29 @@ def parse_message(data: dict[str, Any]) -> Message:
     match message_type:
         case "user":
             try:
-                return UserMessage(content=data["message"]["content"])
+                if isinstance(data["message"]["content"], list):
+                    content_blocks: list[ContentBlock] = []
+                    for block in data["message"]["content"]:
+                        match block["type"]:
+                            case "text":
+                                content_blocks.append(TextBlock(text=block["text"]))
+                            case "tool_use":
+                                content_blocks.append(
+                                    ToolUseBlock(
+                                        id=block["id"],
+                                        name=block["name"],
+                                        input=block["input"],
+                                    )
+                                )
+                            case "tool_result":
+                                content_blocks.append(
+                                    ToolResultBlock(
+                                        tool_use_id=block["tool_use_id"],
+                                        content=block.get("content"),
+                                        is_error=block.get("is_error"),
+                                    )
+                                )
+                return UserMessage(content=content_blocks)
             except KeyError as e:
                 raise MessageParseError(
                     f"Missing required field in user message: {e}", data
