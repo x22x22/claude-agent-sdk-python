@@ -405,7 +405,6 @@ async def main():
         "with_interrupt": example_with_interrupt,
         "manual_message_handling": example_manual_message_handling,
         "with_options": example_with_options,
-        "with_env_vars": example_with_env_vars,
         "async_iterable_prompt": example_async_iterable_prompt,
         "bash_command": example_bash_command,
         "error_handling": example_error_handling,
