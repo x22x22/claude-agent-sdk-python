@@ -1,8 +1,9 @@
 """Tests for Claude SDK transport layer."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
 import os
 import uuid
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import anyio
 import pytest
 
