@@ -1,5 +1,6 @@
 """Subprocess transport implementation using Claude Code CLI."""
 
+import asyncio
 import json
 import logging
 import os
@@ -17,7 +18,21 @@ from anyio.streams.text import TextReceiveStream, TextSendStream
 
 from ..._errors import CLIConnectionError, CLINotFoundError, ProcessError
 from ..._errors import CLIJSONDecodeError as SDKJSONDecodeError
-from ...types import ClaudeCodeOptions
+from ...types import (
+    ClaudeCodeOptions,
+    HookCallback,
+    HookEvent,
+    HookInput,
+    HookJSONOutput,
+)
+from ..control_protocol import (
+    ControlErrorResponse,
+    ControlSuccessResponse,
+    SDKControlInitializeRequest,
+    SDKControlInitializeResponse,
+    SDKControlResponse,
+    SDKHookCallbackMatcher,
+)
 from . import Transport
 
 logger = logging.getLogger(__name__)
@@ -49,6 +64,13 @@ class SubprocessCLITransport(Transport):
         self._close_stdin_after_prompt = close_stdin_after_prompt
         self._task_group: anyio.abc.TaskGroup | None = None
         self._stderr_file: Any = None  # tempfile.NamedTemporaryFile
+
+        # Hooks support
+        self._hook_callbacks: dict[str, HookCallback] = {}
+        self._next_callback_id = 0
+        self._cancel_controllers: dict[str, asyncio.Event] = {}
+        self._initialized = False
+        self._hooks_enabled = options.hooks is not None
 
     def _find_cli(self) -> str:
         """Find Claude Code CLI binary."""
@@ -202,7 +224,13 @@ class SubprocessCLITransport(Transport):
                     # Start streaming messages to stdin in background
                     self._task_group = anyio.create_task_group()
                     await self._task_group.__aenter__()
+
+                    # Initialize hooks if enabled
+                    if self._hooks_enabled:
+                        await self._initialize_hooks()
+
                     self._task_group.start_soon(self._stream_to_stdin)
+                    self._task_group.start_soon(self._handle_control_requests)
             else:
                 # String mode: close stdin immediately (backward compatible)
                 if self._process.stdin:
@@ -334,13 +362,27 @@ class SubprocessCLITransport(Transport):
                         data = json.loads(json_buffer)
                         json_buffer = ""
 
-                        # Handle control responses separately
+                        # Handle control messages separately
                         if data.get("type") == "control_response":
                             response = data.get("response", {})
                             request_id = response.get("request_id")
                             if request_id:
                                 # Store the response for the pending request
                                 self._pending_control_responses[request_id] = response
+                            continue
+
+                        # Handle control requests (for hooks)
+                        if data.get("type") == "control_request":
+                            # Queue control request for processing
+                            if hasattr(self, "_control_request_queue"):
+                                await self._control_request_queue.put(data)
+                            continue
+
+                        # Handle control cancel requests
+                        if data.get("type") == "control_cancel_request":
+                            request_id = data.get("request_id")
+                            if request_id in self._cancel_controllers:
+                                self._cancel_controllers[request_id].set()
                             continue
 
                         try:
@@ -444,3 +486,210 @@ class SubprocessCLITransport(Transport):
             raise CLIConnectionError(f"Control request failed: {response.get('error')}")
 
         return response
+
+    async def _initialize_hooks(self) -> None:
+        """Initialize hooks with the CLI."""
+        if not self._options.hooks:
+            return
+
+        # Convert hooks to SDK format
+        sdk_hooks: dict[HookEvent, list[SDKHookCallbackMatcher]] = {}
+
+        for event, matchers in self._options.hooks.items():
+            sdk_matchers = []
+            for matcher in matchers:
+                callback_ids = []
+                for callback in matcher.hooks:
+                    callback_id = f"hook_{self._next_callback_id}"
+                    self._next_callback_id += 1
+                    self._hook_callbacks[callback_id] = callback
+                    callback_ids.append(callback_id)
+
+                sdk_matchers.append(
+                    SDKHookCallbackMatcher(
+                        matcher=matcher.matcher, hook_callback_ids=callback_ids
+                    )
+                )
+            sdk_hooks[event] = sdk_matchers
+
+        # Send initialize request
+        # sdk_hooks is dict[HookEvent, list[SDKHookCallbackMatcher]]
+        # but protocol expects dict[str, list[dict]]
+        hooks_dict: dict[str, Any] = {k: [m.__dict__ for m in v] for k, v in sdk_hooks.items()}
+        init_request = SDKControlInitializeRequest(
+            subtype="initialize",
+            hooks=hooks_dict  # type: ignore[arg-type]
+        )
+
+        response = await self._send_control_request(init_request.__dict__)
+        self._initialized = True
+        
+        # Initialize response is not returned, just stored
+        # return SDKControlInitializeResponse(**response.get("response", {}))
+
+    async def _handle_control_requests(self) -> None:
+        """Handle incoming control requests from CLI."""
+        # Create a queue for control requests
+        self._control_request_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+        try:
+            while True:
+                # Wait for control request
+                request_data = await self._control_request_queue.get()
+
+                # Process control request
+                request_id = request_data.get("request_id")
+                request = request_data.get("request", {})
+                
+                if not request_id:
+                    continue
+
+                # Create cancel controller for this request
+                cancel_event = asyncio.Event()
+                self._cancel_controllers[request_id] = cancel_event
+
+                try:
+                    response = await self._process_control_request(
+                        request, cancel_event
+                    )
+
+                    # Send success response
+                    control_response = SDKControlResponse(
+                        type="control_response",
+                        response=ControlSuccessResponse(
+                            subtype="success", request_id=request_id, response=response
+                        ),
+                    )
+
+                    if self._stdin_stream:
+                        await self._stdin_stream.send(
+                            json.dumps(
+                                control_response.__dict__, default=lambda o: o.__dict__
+                            )
+                            + "\n"
+                        )
+
+                except Exception as e:
+                    # Send error response
+                    control_response = SDKControlResponse(
+                        type="control_response",
+                        response=ControlErrorResponse(
+                            subtype="error", request_id=request_id, error=str(e)
+                        ),
+                    )
+
+                    if self._stdin_stream:
+                        await self._stdin_stream.send(
+                            json.dumps(
+                                control_response.__dict__, default=lambda o: o.__dict__
+                            )
+                            + "\n"
+                        )
+
+                finally:
+                    # Clean up cancel controller
+                    if request_id in self._cancel_controllers:
+                        del self._cancel_controllers[request_id]
+
+        except asyncio.CancelledError:
+            # Task group was cancelled
+            pass
+        except Exception as e:
+            logger.error(f"Error in control request handler: {e}")
+
+    async def _process_control_request(
+        self, request: dict[str, Any], cancel_event: asyncio.Event
+    ) -> dict[str, Any]:
+        """Process a control request from CLI."""
+        subtype = request.get("subtype")
+
+        if subtype == "hook_callback":
+            # Handle hook callback
+            callback_id = request.get("callback_id")
+            if not callback_id:
+                raise ValueError("Missing callback_id in hook callback request")
+            input_data = request.get("input", {})
+            tool_use_id = request.get("tool_use_id")
+
+            callback = self._hook_callbacks.get(callback_id)
+            if not callback:
+                raise ValueError(f"No hook callback found for ID: {callback_id}")
+
+            # Convert input data to appropriate HookInput type
+            hook_input = self._parse_hook_input(input_data)
+
+            # Create options with abort signal
+            options = {"signal": cancel_event}
+
+            # Call the hook
+            result = await callback(hook_input, tool_use_id, options)
+
+            # Convert result to dict
+            return self._hook_output_to_dict(result)
+
+        else:
+            raise ValueError(f"Unsupported control request subtype: {subtype}")
+
+    def _parse_hook_input(self, data: dict[str, Any]) -> HookInput:
+        """Parse hook input data into appropriate type."""
+        from ...types import (
+            NotificationHookInput,
+            PostToolUseHookInput,
+            PreCompactHookInput,
+            PreToolUseHookInput,
+            SessionEndHookInput,
+            SessionStartHookInput,
+            StopHookInput,
+            SubagentStopHookInput,
+            UserPromptSubmitHookInput,
+        )
+
+        event_name = data.get("hook_event_name")
+        if not event_name:
+            raise ValueError("Missing hook_event_name in hook input")
+
+        # Map event names to input classes
+        input_classes: dict[str, type[HookInput]] = {
+            "PreToolUse": PreToolUseHookInput,
+            "PostToolUse": PostToolUseHookInput,
+            "Notification": NotificationHookInput,
+            "UserPromptSubmit": UserPromptSubmitHookInput,
+            "SessionStart": SessionStartHookInput,
+            "SessionEnd": SessionEndHookInput,
+            "Stop": StopHookInput,
+            "SubagentStop": SubagentStopHookInput,
+            "PreCompact": PreCompactHookInput,
+        }
+
+        input_class = input_classes.get(event_name)
+        if not input_class:
+            raise ValueError(f"Unknown hook event: {event_name}")
+
+        # Create instance from dict
+        return input_class(**data)
+
+    def _hook_output_to_dict(self, output: HookJSONOutput) -> dict[str, Any]:
+        """Convert HookJSONOutput to dict for JSON serialization."""
+        result: dict[str, Any] = {}
+
+        # Map Python field names to JSON field names
+        if output.continue_ is not None:
+            result["continue"] = output.continue_
+        if output.suppress_output is not None:
+            result["suppressOutput"] = output.suppress_output
+        if output.stop_reason is not None:
+            result["stopReason"] = output.stop_reason
+        if output.decision is not None:
+            result["decision"] = output.decision
+        if output.system_message is not None:
+            result["systemMessage"] = output.system_message
+        if output.permission_decision is not None:
+            result["permissionDecision"] = output.permission_decision
+        if output.permission_decision_reason is not None:
+            result["permissionDecisionReason"] = output.permission_decision_reason
+        if output.reason is not None:
+            result["reason"] = output.reason
+        if output.hook_specific_output is not None:
+            result["hookSpecificOutput"] = output.hook_specific_output
+
+        return result

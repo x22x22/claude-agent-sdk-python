@@ -5,7 +5,13 @@ from collections.abc import AsyncIterable, AsyncIterator
 from typing import Any
 
 from ._errors import CLIConnectionError
-from .types import ClaudeCodeOptions, Message, ResultMessage
+from .types import (
+    ClaudeCodeOptions,
+    HookCallbackMatcher,
+    HookEvent,
+    Message,
+    ResultMessage,
+)
 
 
 class ClaudeSDKClient:
@@ -88,12 +94,53 @@ class ClaudeSDKClient:
 
         await client.disconnect()
         ```
+
+    Example - With hooks for tool control:
+        ```python
+        from claude_code_sdk import HookCallbackMatcher, PreToolUseHookInput, HookJSONOutput
+
+        async def pre_tool_hook(input: PreToolUseHookInput, tool_use_id, options):
+            # Intercept and control tool execution
+            if input.tool_name == "Bash":
+                if "rm -rf" in str(input.tool_input):
+                    return HookJSONOutput(
+                        permission_decision="deny",
+                        reason="Dangerous command detected"
+                    )
+            return HookJSONOutput(permission_decision="allow")
+
+        hooks = {
+            "PreToolUse": [
+                HookCallbackMatcher(hooks=[pre_tool_hook])
+            ]
+        }
+
+        async with ClaudeSDKClient(hooks=hooks) as client:
+            await client.query("Clean up temporary files")
+            async for message in client.receive_response():
+                print(message)
+        ```
     """
 
-    def __init__(self, options: ClaudeCodeOptions | None = None):
-        """Initialize Claude SDK client."""
+    def __init__(
+        self,
+        options: ClaudeCodeOptions | None = None,
+        hooks: dict[HookEvent, list[HookCallbackMatcher]] | None = None,
+    ):
+        """
+        Initialize Claude SDK client.
+
+        Args:
+            options: Configuration options for Claude Code
+            hooks: Optional dict of hook events to callback matchers for intercepting tool execution
+        """
         if options is None:
             options = ClaudeCodeOptions()
+
+        # Add hooks to options if provided
+        if hooks is not None:
+            options.hooks = hooks
+
         self.options = options
         self._transport: Any | None = None
         os.environ["CLAUDE_CODE_ENTRYPOINT"] = "sdk-py-client"

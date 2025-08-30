@@ -6,7 +6,7 @@ from typing import Any
 
 from ._internal.client import InternalClient
 from ._internal.transport import Transport
-from .types import ClaudeCodeOptions, Message
+from .types import ClaudeCodeOptions, HookCallbackMatcher, HookEvent, Message
 
 
 async def query(
@@ -14,6 +14,7 @@ async def query(
     prompt: str | AsyncIterable[dict[str, Any]],
     options: ClaudeCodeOptions | None = None,
     transport: Transport | None = None,
+    hooks: dict[HookEvent, list[HookCallbackMatcher]] | None = None,
 ) -> AsyncIterator[Message]:
     """
     Query Claude Code for one-shot or unidirectional streaming interactions.
@@ -61,6 +62,8 @@ async def query(
         transport: Optional transport implementation. If provided, this will be used
                   instead of the default transport selection based on options.
                   The transport will be automatically configured with the prompt and options.
+        hooks: Optional dict of hook events to callback matchers. Hooks allow you to intercept
+               and control tool execution. Only works in streaming mode (AsyncIterable prompt).
 
     Yields:
         Messages from the conversation
@@ -112,9 +115,44 @@ async def query(
             print(message)
         ```
 
+    Example - With hooks (streaming mode required):
+        ```python
+        from claude_code_sdk import query, HookCallbackMatcher, PreToolUseHookInput, HookJSONOutput
+
+        async def pre_tool_hook(input: PreToolUseHookInput, tool_use_id, options):
+            if input.tool_name == "Edit":
+                return HookJSONOutput(
+                    permission_decision="ask",
+                    reason="Edit operations require user confirmation"
+                )
+            return HookJSONOutput(permission_decision="allow")
+
+        async def prompts():
+            yield {"type": "user", "message": {"role": "user", "content": "Fix the bug"}}
+
+        hooks = {
+            "PreToolUse": [
+                HookCallbackMatcher(
+                    matcher="Edit",
+                    hooks=[pre_tool_hook]
+                )
+            ]
+        }
+
+        async for message in query(prompt=prompts(), hooks=hooks):
+            print(message)
+        ```
+
     """
     if options is None:
         options = ClaudeCodeOptions()
+
+    # Add hooks to options if provided
+    if hooks is not None:
+        # Hooks only work in streaming mode
+        if isinstance(prompt, str):
+            raise ValueError("Hooks require streaming mode (AsyncIterable prompt)")
+        options.hooks = hooks
 
     os.environ["CLAUDE_CODE_ENTRYPOINT"] = "sdk-py"
 
