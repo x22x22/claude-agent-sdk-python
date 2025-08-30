@@ -54,6 +54,7 @@ class Query:
         self._read_task: asyncio.Task[None] | None = None
         self._initialized = False
         self._closed = False
+        self._initialization_result: dict[str, Any] | None = None
 
     async def initialize(self) -> dict[str, Any] | None:
         """Initialize control protocol if in streaming mode.
@@ -90,6 +91,7 @@ class Query:
 
         response = await self._send_control_request(request)
         self._initialized = True
+        self._initialization_result = response  # Store for later access
         return response
 
     async def start(self) -> None:
