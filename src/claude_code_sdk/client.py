@@ -138,6 +138,7 @@ class ClaudeSDKClient:
         # If we have an initial prompt stream, start streaming it
         if prompt is not None and isinstance(prompt, AsyncIterable):
             import asyncio
+
             asyncio.create_task(self._query.stream_input(prompt))
 
     async def receive_messages(self) -> AsyncIterator[Message]:
@@ -187,18 +188,18 @@ class ClaudeSDKClient:
         if not self._query:
             raise CLIConnectionError("Not connected. Call connect() first.")
         await self._query.interrupt()
-    
+
     async def get_server_info(self) -> dict[str, Any] | None:
         """Get server initialization info including available commands and output styles.
-        
+
         Returns initialization information from the Claude Code server including:
         - Available commands (slash commands, system commands, etc.)
         - Current and available output styles
         - Server capabilities
-        
+
         Returns:
             Dictionary with server info, or None if not in streaming mode
-            
+
         Example:
             ```python
             async with ClaudeSDKClient() as client:
@@ -211,7 +212,7 @@ class ClaudeSDKClient:
         if not self._query:
             raise CLIConnectionError("Not connected. Call connect() first.")
         # Return the initialization result that was already obtained during connect
-        return getattr(self._query, '_initialization_result', None)
+        return getattr(self._query, "_initialization_result", None)
 
     async def receive_response(self) -> AsyncIterator[Message]:
         """

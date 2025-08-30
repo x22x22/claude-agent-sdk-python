@@ -217,6 +217,7 @@ class SubprocessCLITransport(Transport):
 
         if self._process.returncode is None:
             from contextlib import suppress
+
             with suppress(ProcessLookupError):
                 self._process.terminate()
                 # Note: We can't use async wait here since close() is sync
@@ -251,6 +252,7 @@ class SubprocessCLITransport(Transport):
             self._stdin_stream = None
         if self._process and self._process.stdin:
             from contextlib import suppress
+
             with suppress(Exception):
                 # Mark stdin as closed - actual close will happen during cleanup
                 pass
@@ -350,6 +352,10 @@ class SubprocessCLITransport(Transport):
 
     def is_ready(self) -> bool:
         """Check if transport is ready for communication."""
-        return self._ready and self._process is not None and self._process.returncode is None
+        return (
+            self._ready
+            and self._process is not None
+            and self._process.returncode is None
+        )
 
     # Remove interrupt and control request methods - these now belong in Query class

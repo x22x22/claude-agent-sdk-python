@@ -31,9 +31,7 @@ class InternalClient:
         if transport is not None:
             chosen_transport = transport
         else:
-            chosen_transport = SubprocessCLITransport(
-                prompt=prompt, options=options
-            )
+            chosen_transport = SubprocessCLITransport(prompt=prompt, options=options)
 
         # Connect transport
         await chosen_transport.connect()
@@ -59,6 +57,7 @@ class InternalClient:
             if isinstance(prompt, AsyncIterable):
                 # Start streaming in background
                 import asyncio
+
                 asyncio.create_task(query.stream_input(prompt))
             # For string prompts, the prompt is already passed via CLI args
 

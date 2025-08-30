@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class Query:
     """Handles bidirectional control protocol on top of Transport.
-    
+
     This class manages:
     - Control request/response routing
     - Hook callbacks
@@ -27,11 +27,14 @@ class Query:
         self,
         transport: Transport,
         is_streaming_mode: bool,
-        can_use_tool: Callable[[str, dict[str, Any], dict[str, Any]], Awaitable[dict[str, Any]]] | None = None,
+        can_use_tool: Callable[
+            [str, dict[str, Any], dict[str, Any]], Awaitable[dict[str, Any]]
+        ]
+        | None = None,
         hooks: dict[str, list[dict[str, Any]]] | None = None,
     ):
         """Initialize Query with transport and callbacks.
-        
+
         Args:
             transport: Low-level transport for I/O
             is_streaming_mode: Whether using streaming (bidirectional) mode
@@ -58,7 +61,7 @@ class Query:
 
     async def initialize(self) -> dict[str, Any] | None:
         """Initialize control protocol if in streaming mode.
-        
+
         Returns:
             Initialize response with supported commands, or None if not streaming
         """
@@ -78,10 +81,12 @@ class Query:
                             self.next_callback_id += 1
                             self.hook_callbacks[callback_id] = callback
                             callback_ids.append(callback_id)
-                        hooks_config[event].append({
-                            "matcher": matcher.get("matcher"),
-                            "hookCallbackIds": callback_ids,
-                        })
+                        hooks_config[event].append(
+                            {
+                                "matcher": matcher.get("matcher"),
+                                "hookCallbackIds": callback_ids,
+                            }
+                        )
 
         # Send initialize request
         request = {
@@ -115,7 +120,9 @@ class Query:
                     if request_id in self.pending_control_responses:
                         future = self.pending_control_responses.pop(request_id)
                         if response.get("subtype") == "error":
-                            future.set_exception(Exception(response.get("error", "Unknown error")))
+                            future.set_exception(
+                                Exception(response.get("error", "Unknown error"))
+                            )
                         else:
                             future.set_result(response)
                     continue
@@ -161,7 +168,7 @@ class Query:
                     {
                         "signal": None,  # TODO: Add abort signal support
                         "suggestions": request_data.get("permission_suggestions"),
-                    }
+                    },
                 )
 
             elif subtype == "hook_callback":
@@ -174,7 +181,7 @@ class Query:
                 response_data = await callback(
                     request_data.get("input"),
                     request_data.get("tool_use_id"),
-                    {"signal": None}  # TODO: Add abort signal support
+                    {"signal": None},  # TODO: Add abort signal support
                 )
 
             else:
@@ -187,7 +194,7 @@ class Query:
                     "subtype": "success",
                     "request_id": request_id,
                     "response": response_data,
-                }
+                },
             }
             await self.transport.write(json.dumps(response) + "\n")
 
@@ -199,7 +206,7 @@ class Query:
                     "subtype": "error",
                     "request_id": request_id,
                     "error": str(e),
-                }
+                },
             }
             await self.transport.write(json.dumps(response) + "\n")
 
@@ -240,10 +247,12 @@ class Query:
 
     async def set_permission_mode(self, mode: str) -> None:
         """Change permission mode."""
-        await self._send_control_request({
-            "subtype": "set_permission_mode",
-            "mode": mode,
-        })
+        await self._send_control_request(
+            {
+                "subtype": "set_permission_mode",
+                "mode": mode,
+            }
+        )
 
     async def stream_input(self, stream: AsyncIterable[dict[str, Any]]) -> None:
         """Stream input messages to transport."""
