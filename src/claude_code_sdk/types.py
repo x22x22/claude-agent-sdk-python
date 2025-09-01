@@ -213,7 +213,6 @@ class SDKControlPermissionRequest(TypedDict):
     permission_suggestions: list[Any] | None
     blocked_path: str | None
 
-
 class SDKControlInitializeRequest(TypedDict):
     subtype: Literal["initialize"]
     # TODO: Use HookEvent names as the key.
