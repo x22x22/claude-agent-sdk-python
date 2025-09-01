@@ -199,11 +199,13 @@ class Query:
                 # Handle SDK MCP request
                 server_name = request_data.get("server_name")
                 mcp_message = request_data.get("message")
-                
+
                 if not server_name or not mcp_message:
                     raise Exception("Missing server_name or message for MCP request")
-                
-                response_data = await self._handle_sdk_mcp_request(server_name, mcp_message)
+
+                response_data = await self._handle_sdk_mcp_request(
+                    server_name, mcp_message
+                )
 
             else:
                 raise Exception(f"Unsupported control request subtype: {subtype}")
@@ -278,8 +280,8 @@ class Query:
                 "id": message.get("id"),
                 "error": {
                     "code": -32601,
-                    "message": f"Server '{server_name}' not found"
-                }
+                    "message": f"Server '{server_name}' not found",
+                },
             }
 
         server = self.sdk_mcp_servers[server_name]
@@ -296,37 +298,29 @@ class Query:
                     return {
                         "jsonrpc": "2.0",
                         "id": message.get("id"),
-                        "result": {"tools": [t.model_dump() for t in tools]}
+                        "result": {"tools": [t.model_dump() for t in tools]},
                     }
             elif method == "tools/call":
                 # Get the call_tool handler and call it
                 handler = server.request_handlers.get("tools/call")
                 if handler:
-                    result = await handler(params.get("name"), params.get("arguments", {}))
-                    return {
-                        "jsonrpc": "2.0",
-                        "id": message.get("id"),
-                        "result": result
-                    }
+                    result = await handler(
+                        params.get("name"), params.get("arguments", {})
+                    )
+                    return {"jsonrpc": "2.0", "id": message.get("id"), "result": result}
 
             # Method not found
             return {
                 "jsonrpc": "2.0",
                 "id": message.get("id"),
-                "error": {
-                    "code": -32601,
-                    "message": f"Method '{method}' not found"
-                }
+                "error": {"code": -32601, "message": f"Method '{method}' not found"},
             }
 
         except Exception as e:
             return {
                 "jsonrpc": "2.0",
                 "id": message.get("id"),
-                "error": {
-                    "code": -32603,
-                    "message": str(e)
-                }
+                "error": {"code": -32603, "message": str(e)},
             }
 
     async def interrupt(self) -> None:

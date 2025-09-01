@@ -134,7 +134,7 @@ class SubprocessCLITransport(Transport):
                     for name, config in self._options.mcp_servers.items()
                     if not (isinstance(config, dict) and config.get("type") == "sdk")
                 }
-                
+
                 # Only pass external servers to CLI
                 if external_servers:
                     cmd.extend(

@@ -47,7 +47,9 @@ class McpSdkServerConfig(TypedDict):
     instance: "McpServer"
 
 
-McpServerConfig = McpStdioServerConfig | McpSSEServerConfig | McpHttpServerConfig | McpSdkServerConfig
+McpServerConfig = (
+    McpStdioServerConfig | McpSSEServerConfig | McpHttpServerConfig | McpSdkServerConfig
+)
 
 
 # Content block types
