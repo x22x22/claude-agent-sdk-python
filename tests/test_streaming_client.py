@@ -502,8 +502,31 @@ class TestClaudeSDKClientStreaming:
                 mock_transport = create_mock_transport()
                 mock_transport_class.return_value = mock_transport
 
-                # Mock receive to wait then yield messages
+                # Mock receive to wait then yield messages with control protocol support
                 async def mock_receive():
+                    # First handle initialization
+                    await asyncio.sleep(0.01)
+                    written = mock_transport.write.call_args_list
+                    for call in written:
+                        if call:
+                            data = call[0][0]
+                            try:
+                                msg = json.loads(data.strip())
+                                if msg.get("type") == "control_request" and msg.get("request", {}).get("subtype") == "initialize":
+                                    yield {
+                                        "type": "control_response",
+                                        "response": {
+                                            "request_id": msg.get("request_id"),
+                                            "subtype": "success",
+                                            "commands": [],
+                                            "output_style": "default"
+                                        }
+                                    }
+                                    break
+                            except (json.JSONDecodeError, KeyError, AttributeError):
+                                pass
+                    
+                    # Then yield the actual messages
                     await asyncio.sleep(0.1)
                     yield {
                         "type": "assistant",
@@ -648,8 +671,11 @@ class TestClaudeSDKClientEdgeCases:
             with patch(
                 "claude_code_sdk._internal.transport.subprocess_cli.SubprocessCLITransport"
             ) as mock_transport_class:
-                mock_transport = create_mock_transport()
-                mock_transport_class.return_value = mock_transport
+                # Create a new mock transport for each call
+                mock_transport_class.side_effect = [
+                    create_mock_transport(),
+                    create_mock_transport()
+                ]
 
                 client = ClaudeSDKClient()
                 await client.connect()
@@ -700,8 +726,31 @@ class TestClaudeSDKClientEdgeCases:
                 mock_transport = create_mock_transport()
                 mock_transport_class.return_value = mock_transport
 
-                # Mock the message stream
+                # Mock the message stream with control protocol support
                 async def mock_receive():
+                    # First handle initialization
+                    await asyncio.sleep(0.01)
+                    written = mock_transport.write.call_args_list
+                    for call in written:
+                        if call:
+                            data = call[0][0]
+                            try:
+                                msg = json.loads(data.strip())
+                                if msg.get("type") == "control_request" and msg.get("request", {}).get("subtype") == "initialize":
+                                    yield {
+                                        "type": "control_response",
+                                        "response": {
+                                            "request_id": msg.get("request_id"),
+                                            "subtype": "success",
+                                            "commands": [],
+                                            "output_style": "default"
+                                        }
+                                    }
+                                    break
+                            except (json.JSONDecodeError, KeyError, AttributeError):
+                                pass
+                    
+                    # Then yield the actual messages
                     yield {
                         "type": "assistant",
                         "message": {
