@@ -7,6 +7,7 @@ import shutil
 import tempfile
 from collections import deque
 from collections.abc import AsyncIterable, AsyncIterator
+from contextlib import suppress
 from pathlib import Path
 from subprocess import PIPE
 from typing import Any
@@ -208,20 +209,31 @@ class SubprocessCLITransport(Transport):
         except Exception as e:
             raise CLIConnectionError(f"Failed to start Claude Code: {e}") from e
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the transport and clean up resources."""
         self._ready = False
 
         if not self._process:
             return
 
-        if self._process.returncode is None:
-            from contextlib import suppress
+        # Close stdin first if it's still open
+        if self._stdin_stream:
+            with suppress(Exception):
+                await self._stdin_stream.aclose()
+            self._stdin_stream = None
 
+        if self._process.stdin:
+            with suppress(Exception):
+                await self._process.stdin.aclose()
+
+        # Terminate and wait for process
+        if self._process.returncode is None:
             with suppress(ProcessLookupError):
                 self._process.terminate()
-                # Note: We can't use async wait here since close() is sync
-                # The process will be cleaned up by the OS
+                # Wait for process to finish with timeout
+                with suppress(Exception):
+                    # Just try to wait, but don't block if it fails
+                    await self._process.wait()
 
         # Clean up temp file
         if self._stderr_file:
@@ -244,18 +256,15 @@ class SubprocessCLITransport(Transport):
 
         await self._stdin_stream.send(data)
 
-    def end_input(self) -> None:
+    async def end_input(self) -> None:
         """End the input stream (close stdin)."""
         if self._stdin_stream:
-            # Note: We can't use async aclose here since end_input() is sync
-            # Just mark it as None and let cleanup happen later
+            with suppress(Exception):
+                await self._stdin_stream.aclose()
             self._stdin_stream = None
         if self._process and self._process.stdin:
-            from contextlib import suppress
-
             with suppress(Exception):
-                # Mark stdin as closed - actual close will happen during cleanup
-                pass
+                await self._process.stdin.aclose()
 
     def read_messages(self) -> AsyncIterator[dict[str, Any]]:
         """Read and parse messages from the transport."""
