@@ -1,10 +1,7 @@
 """Claude SDK Client for interacting with Claude Code."""
 
-import asyncio
-import json
 import os
 from collections.abc import AsyncIterable, AsyncIterator
-from contextlib import suppress
 from typing import Any
 
 from ._errors import CLIConnectionError
@@ -166,6 +163,8 @@ class ClaudeSDKClient:
         """
         if not self._query or not self._transport:
             raise CLIConnectionError("Not connected. Call connect() first.")
+
+        import json
 
         # Handle string prompts
         if isinstance(prompt, str):
