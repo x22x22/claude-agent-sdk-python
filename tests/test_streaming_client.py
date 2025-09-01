@@ -525,7 +525,7 @@ class TestClaudeSDKClientStreaming:
                                     break
                             except (json.JSONDecodeError, KeyError, AttributeError):
                                 pass
-                    
+
                     # Then yield the actual messages
                     await asyncio.sleep(0.1)
                     yield {
@@ -749,7 +749,7 @@ class TestClaudeSDKClientEdgeCases:
                                     break
                             except (json.JSONDecodeError, KeyError, AttributeError):
                                 pass
-                    
+
                     # Then yield the actual messages
                     yield {
                         "type": "assistant",
