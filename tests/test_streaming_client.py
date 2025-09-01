@@ -512,15 +512,19 @@ class TestClaudeSDKClientStreaming:
                             data = call[0][0]
                             try:
                                 msg = json.loads(data.strip())
-                                if msg.get("type") == "control_request" and msg.get("request", {}).get("subtype") == "initialize":
+                                if (
+                                    msg.get("type") == "control_request"
+                                    and msg.get("request", {}).get("subtype")
+                                    == "initialize"
+                                ):
                                     yield {
                                         "type": "control_response",
                                         "response": {
                                             "request_id": msg.get("request_id"),
                                             "subtype": "success",
                                             "commands": [],
-                                            "output_style": "default"
-                                        }
+                                            "output_style": "default",
+                                        },
                                     }
                                     break
                             except (json.JSONDecodeError, KeyError, AttributeError):
@@ -592,9 +596,35 @@ while True:
     line = sys.stdin.readline()
     if not line:
         break
-    stdin_messages.append(line.strip())
 
-# Verify we got 2 messages
+    try:
+        msg = json.loads(line.strip())
+        # Handle control requests
+        if msg.get("type") == "control_request":
+            request_id = msg.get("request_id")
+            request = msg.get("request", {})
+
+            # Send control response for initialize
+            if request.get("subtype") == "initialize":
+                response = {
+                    "type": "control_response",
+                    "response": {
+                        "subtype": "success",
+                        "request_id": request_id,
+                        "response": {
+                            "commands": [],
+                            "output_style": "default"
+                        }
+                    }
+                }
+                print(json.dumps(response))
+                sys.stdout.flush()
+        else:
+            stdin_messages.append(line.strip())
+    except:
+        stdin_messages.append(line.strip())
+
+# Verify we got 2 user messages
 assert len(stdin_messages) == 2
 assert '"First"' in stdin_messages[0]
 assert '"Second"' in stdin_messages[1]
@@ -674,7 +704,7 @@ class TestClaudeSDKClientEdgeCases:
                 # Create a new mock transport for each call
                 mock_transport_class.side_effect = [
                     create_mock_transport(),
-                    create_mock_transport()
+                    create_mock_transport(),
                 ]
 
                 client = ClaudeSDKClient()
@@ -736,15 +766,19 @@ class TestClaudeSDKClientEdgeCases:
                             data = call[0][0]
                             try:
                                 msg = json.loads(data.strip())
-                                if msg.get("type") == "control_request" and msg.get("request", {}).get("subtype") == "initialize":
+                                if (
+                                    msg.get("type") == "control_request"
+                                    and msg.get("request", {}).get("subtype")
+                                    == "initialize"
+                                ):
                                     yield {
                                         "type": "control_response",
                                         "response": {
                                             "request_id": msg.get("request_id"),
                                             "subtype": "success",
                                             "commands": [],
-                                            "output_style": "default"
-                                        }
+                                            "output_style": "default",
+                                        },
                                     }
                                     break
                             except (json.JSONDecodeError, KeyError, AttributeError):

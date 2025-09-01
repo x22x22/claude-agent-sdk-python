@@ -1,12 +1,13 @@
 """Query class for handling bidirectional control protocol."""
 
-import asyncio
 import json
 import logging
 import os
 from collections.abc import AsyncIterable, AsyncIterator, Awaitable, Callable
 from contextlib import suppress
 from typing import Any
+
+import anyio
 
 from ..types import (
     SDKControlPermissionRequest,
@@ -54,14 +55,17 @@ class Query:
         self.hooks = hooks or {}
 
         # Control protocol state
-        self.pending_control_responses: dict[str, asyncio.Future[dict[str, Any]]] = {}
+        self.pending_control_responses: dict[str, anyio.Event] = {}
+        self.pending_control_results: dict[str, dict[str, Any] | Exception] = {}
         self.hook_callbacks: dict[str, Callable[..., Any]] = {}
         self.next_callback_id = 0
         self._request_counter = 0
 
         # Message stream
-        self._message_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-        self._read_task: asyncio.Task[None] | None = None
+        self._message_send, self._message_receive = anyio.create_memory_object_stream[
+            dict[str, Any]
+        ](max_buffer_size=100)
+        self._tg: anyio.abc.TaskGroup | None = None
         self._initialized = False
         self._closed = False
         self._initialization_result: dict[str, Any] | None = None
@@ -108,8 +112,10 @@ class Query:
 
     async def start(self) -> None:
         """Start reading messages from transport."""
-        if self._read_task is None:
-            self._read_task = asyncio.create_task(self._read_messages())
+        if self._tg is None:
+            self._tg = anyio.create_task_group()
+            await self._tg.__aenter__()
+            self._tg.start_soon(self._read_messages)
 
     async def _read_messages(self) -> None:
         """Read messages from transport and route them."""
@@ -125,20 +131,22 @@ class Query:
                     response = message.get("response", {})
                     request_id = response.get("request_id")
                     if request_id in self.pending_control_responses:
-                        future = self.pending_control_responses.pop(request_id)
+                        event = self.pending_control_responses[request_id]
                         if response.get("subtype") == "error":
-                            future.set_exception(
-                                Exception(response.get("error", "Unknown error"))
+                            self.pending_control_results[request_id] = Exception(
+                                response.get("error", "Unknown error")
                             )
                         else:
-                            future.set_result(response)
+                            self.pending_control_results[request_id] = response
+                        event.set()
                     continue
 
                 elif msg_type == "control_request":
                     # Handle incoming control requests from CLI
                     # Cast message to SDKControlRequest for type safety
                     request: SDKControlRequest = message  # type: ignore[assignment]
-                    asyncio.create_task(self._handle_control_request(request))
+                    if self._tg:
+                        self._tg.start_soon(self._handle_control_request, request)
                     continue
 
                 elif msg_type == "control_cancel_request":
@@ -146,20 +154,20 @@ class Query:
                     # TODO: Implement cancellation support
                     continue
 
-                # Regular SDK messages go to the queue
-                await self._message_queue.put(message)
+                # Regular SDK messages go to the stream
+                await self._message_send.send(message)
 
-        except asyncio.CancelledError:
+        except anyio.get_cancelled_exc_class():
             # Task was cancelled - this is expected behavior
             logger.debug("Read task cancelled")
             raise  # Re-raise to properly handle cancellation
         except Exception as e:
             logger.error(f"Fatal error in message reader: {e}")
-            # Put error in queue so iterators can handle it
-            await self._message_queue.put({"type": "error", "error": str(e)})
+            # Put error in stream so iterators can handle it
+            await self._message_send.send({"type": "error", "error": str(e)})
         finally:
             # Always signal end of stream
-            await self._message_queue.put({"type": "end"})
+            await self._message_send.send({"type": "end"})
 
     async def _handle_control_request(self, request: SDKControlRequest) -> None:
         """Handle incoming control request from CLI."""
@@ -234,9 +242,9 @@ class Query:
         self._request_counter += 1
         request_id = f"req_{self._request_counter}_{os.urandom(4).hex()}"
 
-        # Create future for response
-        future: asyncio.Future[dict[str, Any]] = asyncio.Future()
-        self.pending_control_responses[request_id] = future
+        # Create event for response
+        event = anyio.Event()
+        self.pending_control_responses[request_id] = event
 
         # Build and send request
         control_request = {
@@ -249,11 +257,20 @@ class Query:
 
         # Wait for response
         try:
-            response = await asyncio.wait_for(future, timeout=60.0)
-            result = response.get("response", {})
-            return result if isinstance(result, dict) else {}
-        except asyncio.TimeoutError as e:
+            with anyio.fail_after(60.0):
+                await event.wait()
+
+            result = self.pending_control_results.pop(request_id)
             self.pending_control_responses.pop(request_id, None)
+
+            if isinstance(result, Exception):
+                raise result
+
+            response_data = result.get("response", {})
+            return response_data if isinstance(response_data, dict) else {}
+        except TimeoutError as e:
+            self.pending_control_responses.pop(request_id, None)
+            self.pending_control_results.pop(request_id, None)
             raise Exception(f"Control request timeout: {request.get('subtype')}") from e
 
     async def interrupt(self) -> None:
@@ -283,25 +300,24 @@ class Query:
 
     async def receive_messages(self) -> AsyncIterator[dict[str, Any]]:
         """Receive SDK messages (not control messages)."""
-        while not self._closed:
-            message = await self._message_queue.get()
+        async with self._message_receive:
+            async for message in self._message_receive:
+                # Check for special messages
+                if message.get("type") == "end":
+                    break
+                elif message.get("type") == "error":
+                    raise Exception(message.get("error", "Unknown error"))
 
-            # Check for special messages
-            if message.get("type") == "end":
-                break
-            elif message.get("type") == "error":
-                raise Exception(message.get("error", "Unknown error"))
-
-            yield message
+                yield message
 
     async def close(self) -> None:
         """Close the query and transport."""
         self._closed = True
-        if self._read_task and not self._read_task.done():
-            self._read_task.cancel()
-            # Wait for task to complete cancellation
-            with suppress(asyncio.CancelledError):
-                await self._read_task
+        if self._tg:
+            self._tg.cancel_scope.cancel()
+            # Wait for task group to complete cancellation
+            with suppress(anyio.get_cancelled_exc_class()):
+                await self._tg.__aexit__(None, None, None)
         await self.transport.close()
 
     # Make Query an async iterator

@@ -194,18 +194,19 @@ class SDKControlRequest(TypedDict):
         | SDKControlMcpMessageRequest
     )
 
+
 class ControlResponse(TypedDict):
-  subtype: Literal['success']
-  request_id: str
-  response: dict[str, Any] | None
+    subtype: Literal["success"]
+    request_id: str
+    response: dict[str, Any] | None
 
 
 class ControlErrorResponse(TypedDict):
-  subtype: Literal['error']
-  request_id: str
-  error: str
+    subtype: Literal["error"]
+    request_id: str
+    error: str
 
 
 class SDKControlResponse(TypedDict):
-    type: Literal['control_response']
+    type: Literal["control_response"]
     response: ControlResponse | ControlErrorResponse

@@ -1,6 +1,5 @@
 """Claude SDK Client for interacting with Claude Code."""
 
-import asyncio
 import json
 import os
 from collections.abc import AsyncIterable, AsyncIterator
@@ -138,8 +137,8 @@ class ClaudeSDKClient:
         await self._query.initialize()
 
         # If we have an initial prompt stream, start streaming it
-        if prompt is not None and isinstance(prompt, AsyncIterable):
-            asyncio.create_task(self._query.stream_input(prompt))
+        if prompt is not None and isinstance(prompt, AsyncIterable) and self._query._tg:
+            self._query._tg.start_soon(self._query.stream_input, prompt)
 
     async def receive_messages(self) -> AsyncIterator[Message]:
         """Receive all messages from Claude."""
