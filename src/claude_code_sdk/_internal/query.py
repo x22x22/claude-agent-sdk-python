@@ -8,6 +8,12 @@ from collections.abc import AsyncIterable, AsyncIterator, Awaitable, Callable
 from contextlib import suppress
 from typing import Any
 
+from ..types import (
+    SDKControlPermissionRequest,
+    SDKControlRequest,
+    SDKControlResponse,
+    SDKHookCallbackRequest,
+)
 from .transport import Transport
 
 logger = logging.getLogger(__name__)
@@ -130,7 +136,9 @@ class Query:
 
                 elif msg_type == "control_request":
                     # Handle incoming control requests from CLI
-                    asyncio.create_task(self._handle_control_request(message))
+                    # Cast message to SDKControlRequest for type safety
+                    request: SDKControlRequest = message  # type: ignore[assignment]
+                    asyncio.create_task(self._handle_control_request(request))
                     continue
 
                 elif msg_type == "control_cancel_request":
@@ -153,32 +161,34 @@ class Query:
             # Always signal end of stream
             await self._message_queue.put({"type": "end"})
 
-    async def _handle_control_request(self, request: dict[str, Any]) -> None:
+    async def _handle_control_request(self, request: SDKControlRequest) -> None:
         """Handle incoming control request from CLI."""
-        request_id = request.get("request_id")
-        request_data = request.get("request", {})
-        subtype = request_data.get("subtype")
+        request_id = request["request_id"]
+        request_data = request["request"]
+        subtype = request_data["subtype"]
 
         try:
             response_data = {}
 
             if subtype == "can_use_tool":
+                permission_request: SDKControlPermissionRequest = request_data  # type: ignore[assignment]
                 # Handle tool permission request
                 if not self.can_use_tool:
                     raise Exception("canUseTool callback is not provided")
 
                 response_data = await self.can_use_tool(
-                    request_data.get("tool_name"),
-                    request_data.get("input"),
+                    permission_request["tool_name"],
+                    permission_request["input"],
                     {
                         "signal": None,  # TODO: Add abort signal support
-                        "suggestions": request_data.get("permission_suggestions"),
+                        "suggestions": permission_request.get("permission_suggestions"),
                     },
                 )
 
             elif subtype == "hook_callback":
+                hook_callback_request: SDKHookCallbackRequest = request_data  # type: ignore[assignment]
                 # Handle hook callback
-                callback_id = request_data.get("callback_id")
+                callback_id = hook_callback_request["callback_id"]
                 callback = self.hook_callbacks.get(callback_id)
                 if not callback:
                     raise Exception(f"No hook callback found for ID: {callback_id}")
@@ -193,7 +203,7 @@ class Query:
                 raise Exception(f"Unsupported control request subtype: {subtype}")
 
             # Send success response
-            response = {
+            success_response: SDKControlResponse = {
                 "type": "control_response",
                 "response": {
                     "subtype": "success",
@@ -201,11 +211,11 @@ class Query:
                     "response": response_data,
                 },
             }
-            await self.transport.write(json.dumps(response) + "\n")
+            await self.transport.write(json.dumps(success_response) + "\n")
 
         except Exception as e:
             # Send error response
-            response = {
+            error_response: SDKControlResponse = {
                 "type": "control_response",
                 "response": {
                     "subtype": "error",
@@ -213,7 +223,7 @@ class Query:
                     "error": str(e),
                 },
             }
-            await self.transport.write(json.dumps(response) + "\n")
+            await self.transport.write(json.dumps(error_response) + "\n")
 
     async def _send_control_request(self, request: dict[str, Any]) -> dict[str, Any]:
         """Send control request to CLI and wait for response."""
