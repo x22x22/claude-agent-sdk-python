@@ -1,5 +1,7 @@
 """Claude SDK Client for interacting with Claude Code."""
 
+import asyncio
+import json
 import os
 from collections.abc import AsyncIterable, AsyncIterator
 from typing import Any
@@ -137,8 +139,6 @@ class ClaudeSDKClient:
 
         # If we have an initial prompt stream, start streaming it
         if prompt is not None and isinstance(prompt, AsyncIterable):
-            import asyncio
-
             asyncio.create_task(self._query.stream_input(prompt))
 
     async def receive_messages(self) -> AsyncIterator[Message]:
@@ -163,8 +163,6 @@ class ClaudeSDKClient:
         """
         if not self._query or not self._transport:
             raise CLIConnectionError("Not connected. Call connect() first.")
-
-        import json
 
         # Handle string prompts
         if isinstance(prompt, str):
@@ -258,7 +256,7 @@ class ClaudeSDKClient:
     async def disconnect(self) -> None:
         """Disconnect from Claude."""
         if self._query:
-            self._query.close()
+            await self._query.close()
             self._query = None
         self._transport = None
 

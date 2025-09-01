@@ -46,7 +46,7 @@ class Transport(ABC):
         pass
 
     @abstractmethod
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the transport connection and clean up resources."""
         pass
 
@@ -60,7 +60,7 @@ class Transport(ABC):
         pass
 
     @abstractmethod
-    def end_input(self) -> None:
+    async def end_input(self) -> None:
         """End the input stream (close stdin for process transports)."""
         pass
 

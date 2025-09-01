@@ -5,6 +5,7 @@ import json
 import logging
 import os
 from collections.abc import AsyncIterable, AsyncIterator, Awaitable, Callable
+from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 from .transport import Transport
@@ -146,12 +147,16 @@ class Query:
                 # Regular SDK messages go to the queue
                 await self._message_queue.put(message)
 
+        except asyncio.CancelledError:
+            # Task was cancelled - this is expected behavior
+            logger.debug("Read task cancelled")
+            raise  # Re-raise to properly handle cancellation
         except Exception as e:
-            logger.debug(f"Error reading messages: {e}")
+            logger.error(f"Fatal error in message reader: {e}")
             # Put error in queue so iterators can handle it
             await self._message_queue.put({"type": "error", "error": str(e)})
         finally:
-            # Signal end of stream
+            # Always signal end of stream
             await self._message_queue.put({"type": "end"})
 
     async def _handle_control_request(self, request: dict[str, Any]) -> None:
@@ -345,7 +350,7 @@ class Query:
                     break
                 await self.transport.write(json.dumps(message) + "\n")
             # After all messages sent, end input
-            self.transport.end_input()
+            await self.transport.end_input()
         except Exception as e:
             logger.debug(f"Error streaming input: {e}")
 
@@ -362,12 +367,15 @@ class Query:
 
             yield message
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the query and transport."""
         self._closed = True
         if self._read_task and not self._read_task.done():
             self._read_task.cancel()
-        self.transport.close()
+            # Wait for task to complete cancellation
+            with suppress(asyncio.CancelledError):
+                await self._read_task
+        await self.transport.close()
 
     # Make Query an async iterator
     def __aiter__(self) -> AsyncIterator[dict[str, Any]]:
