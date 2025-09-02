@@ -156,27 +156,70 @@ class ClaudeCodeOptions:
     )  # Pass arbitrary CLI flags
 
 
-# Control protocol types for initialization
-@dataclass
-class InitializationMessage:
-    """Initialization message from the CLI."""
-
-    type: Literal["control_response"]
-    response: dict[str, Any]
+# SDK Control Protocol
+class SDKControlInterruptRequest(TypedDict):
+    subtype: Literal["interrupt"]
 
 
-@dataclass
-class ControlRequest:
-    """Control request message."""
+class SDKControlPermissionRequest(TypedDict):
+    subtype: Literal["can_use_tool"]
+    tool_name: str
+    input: dict[str, Any]
+    # TODO: Add PermissionUpdate type here
+    permission_suggestions: list[Any] | None
+    blocked_path: str | None
 
+
+class SDKControlInitializeRequest(TypedDict):
+    subtype: Literal["initialize"]
+    # TODO: Use HookEvent names as the key.
+    hooks: dict[str, Any] | None
+
+
+class SDKControlSetPermissionModeRequest(TypedDict):
+    subtype: Literal["set_permission_mode"]
+    # TODO: Add PermissionMode
+    mode: str
+
+
+class SDKHookCallbackRequest(TypedDict):
+    subtype: Literal["hook_callback"]
+    callback_id: str
+    input: Any
+    tool_use_id: str | None
+
+
+class SDKControlMcpMessageRequest(TypedDict):
+    subtype: Literal["mcp_message"]
+    server_name: str
+    message: Any
+
+
+class SDKControlRequest(TypedDict):
     type: Literal["control_request"]
     request_id: str
-    request: dict[str, Any]
+    request: (
+        SDKControlInterruptRequest
+        | SDKControlPermissionRequest
+        | SDKControlInitializeRequest
+        | SDKControlSetPermissionModeRequest
+        | SDKHookCallbackRequest
+        | SDKControlMcpMessageRequest
+    )
 
 
-@dataclass
-class ControlResponse:
-    """Control response message."""
+class ControlResponse(TypedDict):
+    subtype: Literal["success"]
+    request_id: str
+    response: dict[str, Any] | None
 
+
+class ControlErrorResponse(TypedDict):
+    subtype: Literal["error"]
+    request_id: str
+    error: str
+
+
+class SDKControlResponse(TypedDict):
     type: Literal["control_response"]
-    response: dict[str, Any]
+    response: ControlResponse | ControlErrorResponse

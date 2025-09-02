@@ -1,6 +1,5 @@
 """Internal client implementation."""
 
-import asyncio
 from collections.abc import AsyncIterable, AsyncIterator
 from typing import Any
 
@@ -63,9 +62,10 @@ class InternalClient:
                 await query.initialize()
 
             # Stream input if it's an AsyncIterable
-            if isinstance(prompt, AsyncIterable):
+            if isinstance(prompt, AsyncIterable) and query._tg:
                 # Start streaming in background
-                asyncio.create_task(query.stream_input(prompt))
+                # Create a task that will run in the background
+                query._tg.start_soon(query.stream_input, prompt)
             # For string prompts, the prompt is already passed via CLI args
 
             # Yield parsed messages
