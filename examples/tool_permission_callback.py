@@ -7,17 +7,16 @@ which tools Claude can use and modify their inputs.
 
 import asyncio
 import json
+
 from claude_code_sdk import (
+    AssistantMessage,
     ClaudeCodeOptions,
     ClaudeSDKClient,
-    ToolPermissionCallback,
-    ToolPermissionResponse,
-    ToolPermissionContext,
-    TextBlock,
-    AssistantMessage,
     ResultMessage,
+    TextBlock,
+    ToolPermissionContext,
+    ToolPermissionResponse,
 )
-
 
 # Track tool usage for demonstration
 tool_usage_log = []
@@ -29,17 +28,17 @@ async def my_permission_callback(
     context: ToolPermissionContext
 ) -> ToolPermissionResponse:
     """Control tool permissions based on tool type and input."""
-    
+
     # Log the tool request
     tool_usage_log.append({
         "tool": tool_name,
         "input": input_data,
         "suggestions": context.suggestions
     })
-    
+
     print(f"\n🔧 Tool Permission Request: {tool_name}")
     print(f"   Input: {json.dumps(input_data, indent=2)}")
-    
+
     # Always allow read operations
     if tool_name in ["Read", "Glob", "Grep"]:
         print(f"   ✅ Automatically allowing {tool_name} (read-only operation)")
@@ -47,7 +46,7 @@ async def my_permission_callback(
             allow=True,
             reason="Read operations are always allowed"
         )
-    
+
     # Deny write operations to system directories
     if tool_name in ["Write", "Edit", "MultiEdit"]:
         file_path = input_data.get("file_path", "")
@@ -57,7 +56,7 @@ async def my_permission_callback(
                 allow=False,
                 reason=f"Cannot write to system directory: {file_path}"
             )
-        
+
         # Redirect writes to a safe directory
         if not file_path.startswith("/tmp/") and not file_path.startswith("./"):
             safe_path = f"./safe_output/{file_path.split('/')[-1]}"
@@ -69,12 +68,12 @@ async def my_permission_callback(
                 input=modified_input,
                 reason=f"Redirected to safe path: {safe_path}"
             )
-    
+
     # Check dangerous bash commands
     if tool_name == "Bash":
         command = input_data.get("command", "")
         dangerous_commands = ["rm -rf", "sudo", "chmod 777", "dd if=", "mkfs"]
-        
+
         for dangerous in dangerous_commands:
             if dangerous in command:
                 print(f"   ❌ Denying dangerous command: {command}")
@@ -82,19 +81,19 @@ async def my_permission_callback(
                     allow=False,
                     reason=f"Dangerous command pattern detected: {dangerous}"
                 )
-        
+
         # Allow but log the command
         print(f"   ✅ Allowing bash command: {command}")
         return ToolPermissionResponse(
             allow=True,
             reason="Command appears safe"
         )
-    
+
     # For all other tools, ask the user
     print(f"   ❓ Unknown tool: {tool_name}")
     print(f"      Input: {json.dumps(input_data, indent=6)}")
     user_input = input("   Allow this tool? (y/N): ").strip().lower()
-    
+
     return ToolPermissionResponse(
         allow=user_input in ("y", "yes"),
         reason=f"User {'approved' if user_input in ('y', 'yes') else 'denied'}"
@@ -103,7 +102,7 @@ async def my_permission_callback(
 
 async def main():
     """Run example with tool permission callbacks."""
-    
+
     print("=" * 60)
     print("Tool Permission Callback Example")
     print("=" * 60)
@@ -113,7 +112,7 @@ async def main():
     print("3. Log tool usage")
     print("4. Prompt for unknown tools")
     print("=" * 60)
-    
+
     # Configure options with our callback
     options = ClaudeCodeOptions(
         tool_permission_callback=my_permission_callback,
@@ -121,7 +120,7 @@ async def main():
         permission_mode="default",
         cwd="."  # Set working directory
     )
-    
+
     # Create client and send a query that will use multiple tools
     async with ClaudeSDKClient(options) as client:
         print("\n📝 Sending query to Claude...")
@@ -131,26 +130,26 @@ async def main():
             "2. Create a simple Python hello world script at hello.py\n"
             "3. Run the script to test it"
         )
-        
+
         print("\n📨 Receiving response...")
         message_count = 0
-        
+
         async for message in client.receive_response():
             message_count += 1
-            
+
             if isinstance(message, AssistantMessage):
                 # Print Claude's text responses
                 for block in message.content:
                     if isinstance(block, TextBlock):
                         print(f"\n💬 Claude: {block.text}")
-            
+
             elif isinstance(message, ResultMessage):
-                print(f"\n✅ Task completed!")
+                print("\n✅ Task completed!")
                 print(f"   Duration: {message.duration_ms}ms")
                 if message.total_cost_usd:
                     print(f"   Cost: ${message.total_cost_usd:.4f}")
                 print(f"   Messages processed: {message_count}")
-    
+
     # Print tool usage summary
     print("\n" + "=" * 60)
     print("Tool Usage Summary")

@@ -201,31 +201,6 @@ class ClaudeSDKClient:
         if not self._query:
             raise CLIConnectionError("Not connected. Call connect() first.")
         await self._query.interrupt()
-    
-    async def get_server_info(self) -> dict[str, Any] | None:
-        """Get server initialization info including available commands and output styles.
-        
-        Returns initialization information from the Claude Code server including:
-        - Available commands (slash commands, system commands, etc.)
-        - Current and available output styles
-        - Server capabilities
-        
-        Returns:
-            Dictionary with server info, or None if not in streaming mode
-            
-        Example:
-            ```python
-            async with ClaudeSDKClient() as client:
-                info = await client.get_server_info()
-                if info:
-                    print(f"Commands available: {len(info.get('commands', []))}")
-                    print(f"Output style: {info.get('output_style', 'default')}")
-            ```
-        """
-        if not self._query:
-            raise CLIConnectionError("Not connected. Call connect() first.")
-        # Return the initialization result that was already obtained during connect
-        return getattr(self._query, '_initialization_result', None)
 
     async def get_server_info(self) -> dict[str, Any] | None:
         """Get server initialization info including available commands and output styles.
