@@ -221,9 +221,7 @@ class Query:
                 if not server_name or not mcp_message:
                     raise Exception("Missing server_name or message for MCP request")
 
-                response_data = await self._handle_sdk_mcp_request(
-                    server_name, mcp_message
-                )
+                response_data = await self._handle_sdk_mcp_request(server_name, mcp_message)
 
             else:
                 raise Exception(f"Unsupported control request subtype: {subtype}")
