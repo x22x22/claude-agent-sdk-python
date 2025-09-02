@@ -34,7 +34,7 @@ class ToolPermissionResponse:
 
 ToolPermissionCallback = Callable[
     [str, dict[str, Any], ToolPermissionContext],
-    Awaitable[ToolPermissionResponse | dict[str, Any]]
+    Awaitable[ToolPermissionResponse]
 ]
 
 
