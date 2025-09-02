@@ -184,14 +184,34 @@ class Query:
                 if not self.can_use_tool:
                     raise Exception("canUseTool callback is not provided")
 
-                response_data = await self.can_use_tool(
+                # Import here to avoid circular dependency
+                from ..types import ToolPermissionContext, ToolPermissionResponse
+
+                context = ToolPermissionContext(
+                    signal=None,  # TODO: Add abort signal support
+                    suggestions=permission_request.get("permission_suggestions", [])
+                )
+
+                response = await self.can_use_tool(
                     permission_request["tool_name"],
                     permission_request["input"],
-                    {
-                        "signal": None,  # TODO: Add abort signal support
-                        "suggestions": permission_request.get("permission_suggestions"),
-                    },
+                    context
                 )
+
+                # Convert ToolPermissionResponse to expected dict format
+                if isinstance(response, ToolPermissionResponse):
+                    response_data = {
+                        "allow": response.allow
+                    }
+                    if response.input is not None:
+                        response_data["input"] = response.input
+                    if response.reason is not None:
+                        response_data["reason"] = response.reason
+                elif isinstance(response, dict):
+                    # Support returning dict directly for compatibility
+                    response_data = response
+                else:
+                    raise TypeError(f"Tool permission callback must return ToolPermissionResponse or dict, got {type(response)}")
 
             elif subtype == "hook_callback":
                 hook_callback_request: SDKHookCallbackRequest = request_data  # type: ignore[assignment]

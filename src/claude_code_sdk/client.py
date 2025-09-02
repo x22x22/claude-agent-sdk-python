@@ -100,6 +100,22 @@ class ClaudeSDKClient:
         self._query: Any | None = None
         os.environ["CLAUDE_CODE_ENTRYPOINT"] = "sdk-py-client"
 
+    def _convert_hooks_to_internal_format(
+        self, hooks: dict[str, list]
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Convert HookMatcher format to internal Query format."""
+        internal_hooks = {}
+        for event, matchers in hooks.items():
+            internal_hooks[event] = []
+            for matcher in matchers:
+                # Convert HookMatcher to internal dict format
+                internal_matcher = {
+                    "matcher": matcher.matcher if hasattr(matcher, 'matcher') else None,
+                    "hooks": matcher.hooks if hasattr(matcher, 'hooks') else []
+                }
+                internal_hooks[event].append(internal_matcher)
+        return internal_hooks
+
     async def connect(
         self, prompt: str | AsyncIterable[dict[str, Any]] | None = None
     ) -> None:
@@ -128,8 +144,8 @@ class ClaudeSDKClient:
         self._query = Query(
             transport=self._transport,
             is_streaming_mode=True,  # ClaudeSDKClient always uses streaming mode
-            can_use_tool=None,  # TODO: Add support for can_use_tool callback
-            hooks=None,  # TODO: Add support for hooks
+            can_use_tool=self.options.tool_permission_callback,
+            hooks=self._convert_hooks_to_internal_format(self.options.hooks) if self.options.hooks else None,
         )
 
         # Start reading messages and initialize

@@ -1,13 +1,64 @@
 """Type definitions for Claude SDK."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
-from typing_extensions import NotRequired  # For Python < 3.11 compatibility
+try:
+    from typing import NotRequired  # Python 3.11+
+except ImportError:
+    from typing_extensions import NotRequired  # For Python < 3.11 compatibility
 
 # Permission modes
 PermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
+
+
+# Tool callback types
+@dataclass
+class ToolPermissionContext:
+    """Context information for tool permission callbacks."""
+
+    signal: Any | None = None  # Future: abort signal support
+    suggestions: list[str] = field(default_factory=list)  # Permission suggestions from CLI
+
+
+@dataclass
+class ToolPermissionResponse:
+    """Response from tool permission callback."""
+
+    allow: bool
+    input: dict[str, Any] | None = None  # Optional: modified input parameters
+    reason: str | None = None  # Optional: reason for decision
+
+
+ToolPermissionCallback = Callable[
+    [str, dict[str, Any], ToolPermissionContext],
+    Awaitable[ToolPermissionResponse | dict[str, Any]]
+]
+
+
+# Hook callback types
+@dataclass
+class HookContext:
+    """Context information for hook callbacks."""
+
+    signal: Any | None = None  # Future: abort signal support
+
+
+HookCallback = Callable[
+    [dict[str, Any], str | None, HookContext],  # input, tool_use_id, context
+    Awaitable[dict[str, Any]]  # response data
+]
+
+
+# Hook matcher configuration
+@dataclass
+class HookMatcher:
+    """Hook matcher configuration."""
+
+    matcher: dict[str, Any] | None = None  # Matcher criteria
+    hooks: list[HookCallback] = field(default_factory=list)  # Callbacks to invoke
 
 
 # MCP Server config
@@ -141,6 +192,12 @@ class ClaudeCodeOptions:
     extra_args: dict[str, str | None] = field(
         default_factory=dict
     )  # Pass arbitrary CLI flags
+
+    # Tool permission callback
+    tool_permission_callback: ToolPermissionCallback | None = None
+
+    # Hook configurations
+    hooks: dict[str, list[HookMatcher]] | None = None
 
 
 # SDK Control Protocol
