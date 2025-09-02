@@ -76,7 +76,7 @@ async def divide_numbers(args: dict[str, Any]) -> dict[str, Any]:
             ],
             "is_error": True
         }
-    
+
     result = args["a"] / args["b"]
     return {
         "content": [
@@ -102,7 +102,7 @@ async def square_root(args: dict[str, Any]) -> dict[str, Any]:
             ],
             "is_error": True
         }
-    
+
     import math
     result = math.sqrt(n)
     return {
@@ -131,7 +131,7 @@ async def power(args: dict[str, Any]) -> dict[str, Any]:
 
 async def main():
     """Run example calculations using the SDK MCP server."""
-    
+
     # Create the calculator server with all tools
     calculator = create_sdk_mcp_server(
         name="calculator",
@@ -145,14 +145,14 @@ async def main():
             power
         ]
     )
-    
+
     # Configure Claude to use the calculator server
     options = ClaudeCodeOptions(
         mcp_servers={"calc": calculator},
         # Allow Claude to use calculator tools without permission prompts
         permission_mode="bypassPermissions"
     )
-    
+
     # Example prompts to demonstrate calculator usage
     prompts = [
         "Calculate 15 + 27",
@@ -161,12 +161,12 @@ async def main():
         "What is 2 raised to the power of 8?",
         "Calculate (12 + 8) * 3 - 10"  # Complex calculation
     ]
-    
+
     for prompt in prompts:
         print(f"\n{'='*50}")
         print(f"Prompt: {prompt}")
         print(f"{'='*50}")
-        
+
         async for message in query(prompt=prompt, options=options):
             # Print the message content
             if hasattr(message, 'content'):
