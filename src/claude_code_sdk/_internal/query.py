@@ -324,9 +324,9 @@ class Query:
 
         try:
             # TODO: Python MCP SDK lacks the Transport abstraction that TypeScript has.
-            # TypeScript: server.connect(transport) allows custom transports  
+            # TypeScript: server.connect(transport) allows custom transports
             # Python: server.run(read_stream, write_stream) requires actual streams
-            # 
+            #
             # This forces us to manually route methods. When Python MCP adds Transport
             # support, we can refactor to match the TypeScript approach.            
             if method == "tools/list":
