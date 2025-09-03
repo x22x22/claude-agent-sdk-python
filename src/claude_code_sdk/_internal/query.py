@@ -296,7 +296,7 @@ class Query:
 
     async def _handle_sdk_mcp_request(self, server_name: str, message: dict) -> dict:
         """Handle an MCP request for an SDK server.
-        
+
         This acts as a bridge between JSONRPC messages from the CLI
         and the in-process MCP server. Ideally the MCP SDK would provide
         a method to handle raw JSONRPC, but for now we route manually.
@@ -328,7 +328,7 @@ class Query:
             # Python: server.run(read_stream, write_stream) requires actual streams
             #
             # This forces us to manually route methods. When Python MCP adds Transport
-            # support, we can refactor to match the TypeScript approach.            
+            # support, we can refactor to match the TypeScript approach.
             if method == "tools/list":
                 request = ListToolsRequest(method=method)
                 handler = server.request_handlers.get(ListToolsRequest)
@@ -380,7 +380,7 @@ class Query:
 
             # Add more methods here as MCP SDK adds them (resources, prompts, etc.)
             # This is the limitation Ashwin pointed out - we have to manually update
-            
+
             return {
                 "jsonrpc": "2.0",
                 "id": message.get("id"),
