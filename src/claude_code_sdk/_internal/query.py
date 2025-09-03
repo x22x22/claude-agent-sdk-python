@@ -295,7 +295,11 @@ class Query:
             raise Exception(f"Control request timeout: {request.get('subtype')}") from e
 
     async def _handle_sdk_mcp_request(self, server_name: str, message: dict) -> dict:
-        """Handle an MCP request for an SDK server using the MCP SDK's built-in routing.
+        """Handle an MCP request for an SDK server.
+        
+        This acts as a bridge between JSONRPC messages from the CLI
+        and the in-process MCP server. Ideally the MCP SDK would provide
+        a method to handle raw JSONRPC, but for now we route manually.
 
         Args:
             server_name: Name of the SDK MCP server
@@ -319,16 +323,18 @@ class Query:
         params = message.get("params", {})
 
         try:
-            # Route based on method using MCP SDK's request types
+            # TODO: Python MCP SDK lacks the Transport abstraction that TypeScript has.
+            # TypeScript: server.connect(transport) allows custom transports  
+            # Python: server.run(read_stream, write_stream) requires actual streams
+            # 
+            # This forces us to manually route methods. When Python MCP adds Transport
+            # support, we can refactor to match the TypeScript approach.            
             if method == "tools/list":
-                # Create the proper request type
                 request = ListToolsRequest(method=method)
-
-                # Get the handler and call it
                 handler = server.request_handlers.get(ListToolsRequest)
                 if handler:
                     result = await handler(request)
-                    # result is a ServerResult with nested ListToolsResult
+                    # Convert MCP result to JSONRPC response
                     tools_data = [
                         {
                             "name": tool.name,
@@ -344,7 +350,6 @@ class Query:
                     }
 
             elif method == "tools/call":
-                # Create the proper request type
                 request = CallToolRequest(
                     method=method,
                     params=CallToolRequestParams(
@@ -352,13 +357,10 @@ class Query:
                         arguments=params.get("arguments", {})
                     )
                 )
-
-                # Get the handler and call it
                 handler = server.request_handlers.get(CallToolRequest)
                 if handler:
                     result = await handler(request)
-                    # result is a ServerResult with nested CallToolResult
-                    # Convert to JSONRPC response format
+                    # Convert MCP result to JSONRPC response
                     content = []
                     for item in result.root.content:
                         if hasattr(item, 'text'):
@@ -376,7 +378,9 @@ class Query:
                         "result": response_data
                     }
 
-            # Method not found or no handler
+            # Add more methods here as MCP SDK adds them (resources, prompts, etc.)
+            # This is the limitation Ashwin pointed out - we have to manually update
+            
             return {
                 "jsonrpc": "2.0",
                 "id": message.get("id"),
