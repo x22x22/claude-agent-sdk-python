@@ -8,6 +8,11 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 import anyio
+from mcp.types import (
+    CallToolRequest,
+    CallToolRequestParams,
+    ListToolsRequest,
+)
 
 from ..types import (
     SDKControlPermissionRequest,
@@ -19,11 +24,6 @@ from .transport import Transport
 
 if TYPE_CHECKING:
     from mcp.server import Server as McpServer
-    from mcp.types import (
-        CallToolRequest,
-        CallToolRequestParams,
-        ListToolsRequest,
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -319,13 +319,6 @@ class Query:
         params = message.get("params", {})
 
         try:
-            # Import MCP types at runtime
-            from mcp.types import (
-                CallToolRequest,
-                CallToolRequestParams,
-                ListToolsRequest,
-            )
-            
             # Route based on method using MCP SDK's request types
             if method == "tools/list":
                 # Create the proper request type
