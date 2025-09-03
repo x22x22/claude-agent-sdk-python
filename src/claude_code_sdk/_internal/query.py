@@ -316,7 +316,7 @@ class Query:
         try:
             # For now, we'll use a simpler approach without MCP SDK types
             # This avoids import issues in CI where mcp package isn't installed
-            
+
             # Route based on method string directly
             if method == "tools/list":
                 # Try to get the handler - it should handle the raw request
@@ -338,7 +338,7 @@ class Query:
                         else:
                             tool_dict["inputSchema"] = {}
                         tools_data.append(tool_dict)
-                    
+
                     return {
                         "jsonrpc": "2.0",
                         "id": message.get("id"),
@@ -353,7 +353,7 @@ class Query:
                         params.get("name"),
                         params.get("arguments", {})
                     )
-                    
+
                     # Format the response
                     content = []
                     if hasattr(result, 'content'):
