@@ -32,7 +32,7 @@ class ToolPermissionResponse:
     reason: str | None = None  # Optional: reason for decision
 
 
-ToolPermissionCallback = Callable[
+CanUseTool = Callable[
     [str, dict[str, Any], ToolPermissionContext],
     Awaitable[ToolPermissionResponse]
 ]
@@ -194,7 +194,7 @@ class ClaudeCodeOptions:
     )  # Pass arbitrary CLI flags
 
     # Tool permission callback
-    tool_permission_callback: ToolPermissionCallback | None = None
+    can_use_tool: CanUseTool | None = None
 
     # Hook configurations
     hooks: dict[str, list[HookMatcher]] | None = None

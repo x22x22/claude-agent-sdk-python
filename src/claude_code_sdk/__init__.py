@@ -12,6 +12,7 @@ from .client import ClaudeSDKClient
 from .query import query
 from .types import (
     AssistantMessage,
+    CanUseTool,
     ClaudeCodeOptions,
     ContentBlock,
     HookCallback,
@@ -24,7 +25,6 @@ from .types import (
     SystemMessage,
     TextBlock,
     ThinkingBlock,
-    ToolPermissionCallback,
     ToolPermissionContext,
     ToolPermissionResponse,
     ToolResultBlock,
@@ -55,7 +55,7 @@ __all__ = [
     "ToolResultBlock",
     "ContentBlock",
     # Tool callbacks
-    "ToolPermissionCallback",
+    "CanUseTool",
     "ToolPermissionContext",
     "ToolPermissionResponse",
     "HookCallback",

@@ -303,7 +303,7 @@ class TestClaudeCodeOptionsIntegration:
             return {}
 
         options = ClaudeCodeOptions(
-            tool_permission_callback=my_callback,
+            can_use_tool=my_callback,
             hooks={
                 "tool_use_start": [
                     HookMatcher(
@@ -314,7 +314,7 @@ class TestClaudeCodeOptionsIntegration:
             }
         )
 
-        assert options.tool_permission_callback == my_callback
+        assert options.can_use_tool == my_callback
         assert "tool_use_start" in options.hooks
         assert len(options.hooks["tool_use_start"]) == 1
         assert options.hooks["tool_use_start"][0].hooks[0] == my_hook

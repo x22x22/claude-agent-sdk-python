@@ -115,7 +115,7 @@ async def main():
 
     # Configure options with our callback
     options = ClaudeCodeOptions(
-        tool_permission_callback=my_permission_callback,
+        can_use_tool=my_permission_callback,
         # Use default permission mode to ensure callbacks are invoked
         permission_mode="default",
         cwd="."  # Set working directory

@@ -57,7 +57,7 @@ class InternalClient:
         query = Query(
             transport=chosen_transport,
             is_streaming_mode=is_streaming,
-            can_use_tool=options.tool_permission_callback,
+            can_use_tool=options.can_use_tool,
             hooks=self._convert_hooks_to_internal_format(options.hooks) if options.hooks else None,
         )
 

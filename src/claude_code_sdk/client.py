@@ -144,7 +144,7 @@ class ClaudeSDKClient:
         self._query = Query(
             transport=self._transport,
             is_streaming_mode=True,  # ClaudeSDKClient always uses streaming mode
-            can_use_tool=self.options.tool_permission_callback,
+            can_use_tool=self.options.can_use_tool,
             hooks=self._convert_hooks_to_internal_format(self.options.hooks) if self.options.hooks else None,
         )
 
