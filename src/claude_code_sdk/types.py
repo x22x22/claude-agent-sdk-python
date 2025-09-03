@@ -3,12 +3,15 @@
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 try:
     from typing import NotRequired  # Python 3.11+
 except ImportError:
     from typing_extensions import NotRequired  # For Python < 3.11 compatibility
+
+if TYPE_CHECKING:
+    from mcp.server import Server as McpServer
 
 # Permission modes
 PermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
@@ -121,7 +124,17 @@ class McpHttpServerConfig(TypedDict):
     headers: NotRequired[dict[str, str]]
 
 
-McpServerConfig = McpStdioServerConfig | McpSSEServerConfig | McpHttpServerConfig
+class McpSdkServerConfig(TypedDict):
+    """SDK MCP server configuration."""
+
+    type: Literal["sdk"]
+    name: str
+    instance: "McpServer"
+
+
+McpServerConfig = (
+    McpStdioServerConfig | McpSSEServerConfig | McpHttpServerConfig | McpSdkServerConfig
+)
 
 
 # Content block types

@@ -52,6 +52,13 @@ class InternalClient:
         # Connect transport
         await chosen_transport.connect()
 
+        # Extract SDK MCP servers from options
+        sdk_mcp_servers = {}
+        if options.mcp_servers and isinstance(options.mcp_servers, dict):
+            for name, config in options.mcp_servers.items():
+                if isinstance(config, dict) and config.get("type") == "sdk":
+                    sdk_mcp_servers[name] = config["instance"]
+
         # Create Query to handle control protocol
         is_streaming = not isinstance(prompt, str)
         query = Query(
@@ -59,6 +66,7 @@ class InternalClient:
             is_streaming_mode=is_streaming,
             can_use_tool=options.can_use_tool,
             hooks=self._convert_hooks_to_internal_format(options.hooks) if options.hooks else None,
+            sdk_mcp_servers=sdk_mcp_servers,
         )
 
         try:

@@ -140,12 +140,20 @@ class ClaudeSDKClient:
         )
         await self._transport.connect()
 
+        # Extract SDK MCP servers from options
+        sdk_mcp_servers = {}
+        if self.options.mcp_servers and isinstance(self.options.mcp_servers, dict):
+            for name, config in self.options.mcp_servers.items():
+                if isinstance(config, dict) and config.get("type") == "sdk":
+                    sdk_mcp_servers[name] = config["instance"]
+
         # Create Query to handle control protocol
         self._query = Query(
             transport=self._transport,
             is_streaming_mode=True,  # ClaudeSDKClient always uses streaming mode
             can_use_tool=self.options.can_use_tool,
             hooks=self._convert_hooks_to_internal_format(self.options.hooks) if self.options.hooks else None,
+            sdk_mcp_servers=sdk_mcp_servers,
         )
 
         # Start reading messages and initialize
