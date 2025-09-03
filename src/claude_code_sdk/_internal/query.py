@@ -10,12 +10,14 @@ from typing import Any
 import anyio
 
 from ..types import (
+    PermissionResult,
+    PermissionResultAllow,
+    PermissionResultDeny,
     SDKControlPermissionRequest,
     SDKControlRequest,
     SDKControlResponse,
     SDKHookCallbackRequest,
     ToolPermissionContext,
-    ToolPermissionResponse,
 )
 from .transport import Transport
 
@@ -197,17 +199,22 @@ class Query:
                     context
                 )
 
-                # Convert ToolPermissionResponse to expected dict format
-                if not isinstance(response, ToolPermissionResponse):
-                    raise TypeError(f"Tool permission callback must return ToolPermissionResponse, got {type(response)}")
-
-                response_data = {
-                    "allow": response.allow
-                }
-                if response.input is not None:
-                    response_data["input"] = response.input
-                if response.reason is not None:
-                    response_data["reason"] = response.reason
+                # Convert PermissionResult to expected dict format
+                if isinstance(response, PermissionResultAllow):
+                    response_data = {
+                        "allow": True
+                    }
+                    if response.updatedInput is not None:
+                        response_data["input"] = response.updatedInput
+                    # TODO: Handle updatedPermissions when control protocol supports it
+                elif isinstance(response, PermissionResultDeny):
+                    response_data = {
+                        "allow": False,
+                        "reason": response.message
+                    }
+                    # TODO: Handle interrupt flag when control protocol supports it
+                else:
+                    raise TypeError(f"Tool permission callback must return PermissionResult (PermissionResultAllow or PermissionResultDeny), got {type(response)}")
 
             elif subtype == "hook_callback":
                 hook_callback_request: SDKHookCallbackRequest = request_data  # type: ignore[assignment]

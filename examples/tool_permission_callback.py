@@ -12,10 +12,11 @@ from claude_code_sdk import (
     AssistantMessage,
     ClaudeCodeOptions,
     ClaudeSDKClient,
+    PermissionResultAllow,
+    PermissionResultDeny,
     ResultMessage,
     TextBlock,
     ToolPermissionContext,
-    ToolPermissionResponse,
 )
 
 # Track tool usage for demonstration
@@ -26,7 +27,7 @@ async def my_permission_callback(
     tool_name: str,
     input_data: dict,
     context: ToolPermissionContext
-) -> ToolPermissionResponse:
+) -> PermissionResultAllow | PermissionResultDeny:
     """Control tool permissions based on tool type and input."""
 
     # Log the tool request
@@ -42,19 +43,15 @@ async def my_permission_callback(
     # Always allow read operations
     if tool_name in ["Read", "Glob", "Grep"]:
         print(f"   ✅ Automatically allowing {tool_name} (read-only operation)")
-        return ToolPermissionResponse(
-            allow=True,
-            reason="Read operations are always allowed"
-        )
+        return PermissionResultAllow()
 
     # Deny write operations to system directories
     if tool_name in ["Write", "Edit", "MultiEdit"]:
         file_path = input_data.get("file_path", "")
         if file_path.startswith("/etc/") or file_path.startswith("/usr/"):
             print(f"   ❌ Denying write to system directory: {file_path}")
-            return ToolPermissionResponse(
-                allow=False,
-                reason=f"Cannot write to system directory: {file_path}"
+            return PermissionResultDeny(
+                message=f"Cannot write to system directory: {file_path}"
             )
 
         # Redirect writes to a safe directory
@@ -63,10 +60,8 @@ async def my_permission_callback(
             print(f"   ⚠️  Redirecting write from {file_path} to {safe_path}")
             modified_input = input_data.copy()
             modified_input["file_path"] = safe_path
-            return ToolPermissionResponse(
-                allow=True,
-                input=modified_input,
-                reason=f"Redirected to safe path: {safe_path}"
+            return PermissionResultAllow(
+                updatedInput=modified_input
             )
 
     # Check dangerous bash commands
@@ -77,27 +72,25 @@ async def my_permission_callback(
         for dangerous in dangerous_commands:
             if dangerous in command:
                 print(f"   ❌ Denying dangerous command: {command}")
-                return ToolPermissionResponse(
-                    allow=False,
-                    reason=f"Dangerous command pattern detected: {dangerous}"
+                return PermissionResultDeny(
+                    message=f"Dangerous command pattern detected: {dangerous}"
                 )
 
         # Allow but log the command
         print(f"   ✅ Allowing bash command: {command}")
-        return ToolPermissionResponse(
-            allow=True,
-            reason="Command appears safe"
-        )
+        return PermissionResultAllow()
 
     # For all other tools, ask the user
     print(f"   ❓ Unknown tool: {tool_name}")
     print(f"      Input: {json.dumps(input_data, indent=6)}")
     user_input = input("   Allow this tool? (y/N): ").strip().lower()
 
-    return ToolPermissionResponse(
-        allow=user_input in ("y", "yes"),
-        reason=f"User {'approved' if user_input in ('y', 'yes') else 'denied'}"
-    )
+    if user_input in ("y", "yes"):
+        return PermissionResultAllow()
+    else:
+        return PermissionResultDeny(
+            message="User denied permission"
+        )
 
 
 async def main():

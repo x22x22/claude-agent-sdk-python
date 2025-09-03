@@ -6,8 +6,9 @@ from claude_code_sdk import (
     ClaudeCodeOptions,
     HookContext,
     HookMatcher,
+    PermissionResultAllow,
+    PermissionResultDeny,
     ToolPermissionContext,
-    ToolPermissionResponse,
 )
 from claude_code_sdk._internal.query import Query
 from claude_code_sdk._internal.transport import Transport
@@ -55,12 +56,12 @@ class TestToolPermissionCallbacks:
             tool_name: str,
             input_data: dict,
             context: ToolPermissionContext
-        ) -> ToolPermissionResponse:
+        ) -> PermissionResultAllow:
             nonlocal callback_invoked
             callback_invoked = True
             assert tool_name == "TestTool"
             assert input_data == {"param": "value"}
-            return ToolPermissionResponse(allow=True, reason="Test allow")
+            return PermissionResultAllow()
 
         transport = MockTransport()
         query = Query(
@@ -91,7 +92,6 @@ class TestToolPermissionCallbacks:
         assert len(transport.written_messages) == 1
         response = transport.written_messages[0]
         assert '"allow": true' in response
-        assert '"reason": "Test allow"' in response
 
     @pytest.mark.asyncio
     async def test_permission_callback_deny(self):
@@ -100,10 +100,9 @@ class TestToolPermissionCallbacks:
             tool_name: str,
             input_data: dict,
             context: ToolPermissionContext
-        ) -> ToolPermissionResponse:
-            return ToolPermissionResponse(
-                allow=False,
-                reason="Security policy violation"
+        ) -> PermissionResultDeny:
+            return PermissionResultDeny(
+                message="Security policy violation"
             )
 
         transport = MockTransport()
@@ -140,14 +139,12 @@ class TestToolPermissionCallbacks:
             tool_name: str,
             input_data: dict,
             context: ToolPermissionContext
-        ) -> ToolPermissionResponse:
+        ) -> PermissionResultAllow:
             # Modify the input to add safety flag
             modified_input = input_data.copy()
             modified_input["safe_mode"] = True
-            return ToolPermissionResponse(
-                allow=True,
-                input=modified_input,
-                reason="Modified for safety"
+            return PermissionResultAllow(
+                updatedInput=modified_input
             )
 
         transport = MockTransport()
@@ -176,7 +173,6 @@ class TestToolPermissionCallbacks:
         response = transport.written_messages[0]
         assert '"allow": true' in response
         assert '"safe_mode": true' in response
-        assert '"reason": "Modified for safety"' in response
 
     @pytest.mark.asyncio
     async def test_callback_exception_handling(self):
@@ -185,7 +181,7 @@ class TestToolPermissionCallbacks:
             tool_name: str,
             input_data: dict,
             context: ToolPermissionContext
-        ) -> ToolPermissionResponse:
+        ) -> PermissionResultAllow:
             raise ValueError("Callback error")
 
         transport = MockTransport()
@@ -292,8 +288,8 @@ class TestClaudeCodeOptionsIntegration:
             tool_name: str,
             input_data: dict,
             context: ToolPermissionContext
-        ) -> ToolPermissionResponse:
-            return ToolPermissionResponse(allow=True)
+        ) -> PermissionResultAllow:
+            return PermissionResultAllow()
 
         async def my_hook(
             input_data: dict,

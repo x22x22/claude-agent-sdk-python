@@ -14,27 +14,61 @@ except ImportError:
 PermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
 
 
+# Permission Update types (matching TypeScript SDK)
+PermissionUpdateDestination = Literal[
+    "userSettings",
+    "projectSettings", 
+    "localSettings",
+    "session"
+]
+
+PermissionBehavior = Literal["allow", "deny", "ask"]
+
+@dataclass
+class PermissionRuleValue:
+    """Permission rule value."""
+    toolName: str
+    ruleContent: str | None = None
+
+@dataclass 
+class PermissionUpdate:
+    """Permission update configuration."""
+    type: Literal["addRules", "replaceRules", "removeRules", "setMode", "addDirectories", "removeDirectories"]
+    rules: list[PermissionRuleValue] | None = None
+    behavior: PermissionBehavior | None = None
+    mode: PermissionMode | None = None
+    directories: list[str] | None = None
+    destination: PermissionUpdateDestination | None = None
+
 # Tool callback types
 @dataclass
 class ToolPermissionContext:
     """Context information for tool permission callbacks."""
 
     signal: Any | None = None  # Future: abort signal support
-    suggestions: list[str] = field(default_factory=list)  # Permission suggestions from CLI
+    suggestions: list[PermissionUpdate] = field(default_factory=list)  # Permission suggestions from CLI
 
+
+# Match TypeScript's PermissionResult structure
+@dataclass
+class PermissionResultAllow:
+    """Allow permission result."""
+    behavior: Literal["allow"] = "allow"
+    updatedInput: dict[str, Any] | None = None
+    updatedPermissions: list[PermissionUpdate] | None = None
 
 @dataclass
-class ToolPermissionResponse:
-    """Response from tool permission callback."""
+class PermissionResultDeny:
+    """Deny permission result."""
+    behavior: Literal["deny"] = "deny" 
+    message: str = ""
+    interrupt: bool = False
 
-    allow: bool
-    input: dict[str, Any] | None = None  # Optional: modified input parameters
-    reason: str | None = None  # Optional: reason for decision
-
+PermissionResult = PermissionResultAllow | PermissionResultDeny
 
 CanUseTool = Callable[
     [str, dict[str, Any], ToolPermissionContext],
-    Awaitable[ToolPermissionResponse]
+    Awaitable[PermissionResult]
 ]
 
 
