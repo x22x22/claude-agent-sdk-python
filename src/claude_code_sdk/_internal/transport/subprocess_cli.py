@@ -186,6 +186,9 @@ class SubprocessCLITransport(Transport):
                 "CLAUDE_CODE_ENTRYPOINT": "sdk-py",
             }
 
+            if self._cwd:
+                process_env["PWD"] = self._cwd
+
             self._process = await anyio.open_process(
                 cmd,
                 stdin=PIPE,
