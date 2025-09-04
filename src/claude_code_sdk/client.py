@@ -101,10 +101,10 @@ class ClaudeSDKClient:
         os.environ["CLAUDE_CODE_ENTRYPOINT"] = "sdk-py-client"
 
     def _convert_hooks_to_internal_format(
-        self, hooks: dict[str, list]
+        self, hooks: dict[str, list[Any]]
     ) -> dict[str, list[dict[str, Any]]]:
         """Convert HookMatcher format to internal Query format."""
-        internal_hooks = {}
+        internal_hooks: dict[str, list[dict[str, Any]]] = {}
         for event, matchers in hooks.items():
             internal_hooks[event] = []
             for matcher in matchers:
@@ -145,7 +145,7 @@ class ClaudeSDKClient:
         if self.options.mcp_servers and isinstance(self.options.mcp_servers, dict):
             for name, config in self.options.mcp_servers.items():
                 if isinstance(config, dict) and config.get("type") == "sdk":
-                    sdk_mcp_servers[name] = config["instance"]
+                    sdk_mcp_servers[name] = config["instance"]  # type: ignore[typeddict-item]
 
         # Create Query to handle control protocol
         self._query = Query(

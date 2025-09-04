@@ -47,7 +47,8 @@ class Query:
         transport: Transport,
         is_streaming_mode: bool,
         can_use_tool: Callable[
-            [str, dict[str, Any], dict[str, Any]], Awaitable[dict[str, Any]]
+            [str, dict[str, Any], ToolPermissionContext],
+            Awaitable[PermissionResultAllow | PermissionResultDeny],
         ]
         | None = None,
         hooks: dict[str, list[dict[str, Any]]] | None = None,
@@ -190,7 +191,7 @@ class Query:
         subtype = request_data["subtype"]
 
         try:
-            response_data = {}
+            response_data: dict[str, Any] = {}
 
             if subtype == "can_use_tool":
                 permission_request: SDKControlPermissionRequest = request_data  # type: ignore[assignment]
@@ -200,7 +201,8 @@ class Query:
 
                 context = ToolPermissionContext(
                     signal=None,  # TODO: Add abort signal support
-                    suggestions=permission_request.get("permission_suggestions", []),
+                    suggestions=permission_request.get("permission_suggestions", [])
+                    or [],
                 )
 
                 response = await self.can_use_tool(
@@ -237,7 +239,7 @@ class Query:
                     {"signal": None},  # TODO: Add abort signal support
                 )
 
-            elif subtype == "mcp_request":
+            elif subtype == "mcp_message":
                 # Handle SDK MCP request
                 server_name = request_data.get("server_name")
                 mcp_message = request_data.get("message")
@@ -245,6 +247,9 @@ class Query:
                 if not server_name or not mcp_message:
                     raise Exception("Missing server_name or message for MCP request")
 
+                # Type narrowing - we've verified these are not None above
+                assert isinstance(server_name, str)
+                assert isinstance(mcp_message, dict)
                 response_data = await self._handle_sdk_mcp_request(
                     server_name, mcp_message
                 )
@@ -315,7 +320,9 @@ class Query:
             self.pending_control_results.pop(request_id, None)
             raise Exception(f"Control request timeout: {request.get('subtype')}") from e
 
-    async def _handle_sdk_mcp_request(self, server_name: str, message: dict) -> dict:
+    async def _handle_sdk_mcp_request(
+        self, server_name: str, message: dict[str, Any]
+    ) -> dict[str, Any]:
         """Handle an MCP request for an SDK server.
 
         This acts as a bridge between JSONRPC messages from the CLI
@@ -360,11 +367,11 @@ class Query:
                         {
                             "name": tool.name,
                             "description": tool.description,
-                            "inputSchema": tool.inputSchema.model_dump()
+                            "inputSchema": tool.inputSchema.model_dump()  # type: ignore[union-attr]
                             if tool.inputSchema
                             else {},
                         }
-                        for tool in result.root.tools
+                        for tool in result.root.tools  # type: ignore[union-attr]
                     ]
                     return {
                         "jsonrpc": "2.0",
@@ -373,7 +380,7 @@ class Query:
                     }
 
             elif method == "tools/call":
-                request = CallToolRequest(
+                call_request = CallToolRequest(
                     method=method,
                     params=CallToolRequestParams(
                         name=params.get("name"), arguments=params.get("arguments", {})
@@ -381,10 +388,10 @@ class Query:
                 )
                 handler = server.request_handlers.get(CallToolRequest)
                 if handler:
-                    result = await handler(request)
+                    result = await handler(call_request)
                     # Convert MCP result to JSONRPC response
                     content = []
-                    for item in result.root.content:
+                    for item in result.root.content:  # type: ignore[union-attr]
                         if hasattr(item, "text"):
                             content.append({"type": "text", "text": item.text})
                         elif hasattr(item, "data") and hasattr(item, "mimeType"):
@@ -398,7 +405,7 @@ class Query:
 
                     response_data = {"content": content}
                     if hasattr(result.root, "is_error") and result.root.is_error:
-                        response_data["is_error"] = True
+                        response_data["is_error"] = True  # type: ignore[assignment]
 
                     return {
                         "jsonrpc": "2.0",
