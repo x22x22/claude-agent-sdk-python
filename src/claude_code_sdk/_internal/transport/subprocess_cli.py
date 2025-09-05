@@ -23,6 +23,8 @@ from . import Transport
 
 logger = logging.getLogger(__name__)
 
+_MAX_BUFFER_SIZE = 1024 * 1024  # 1MB buffer limit
+
 
 class SubprocessCLITransport(Transport):
     """Subprocess transport using Claude Code CLI."""
@@ -212,7 +214,9 @@ class SubprocessCLITransport(Transport):
         except FileNotFoundError as e:
             # Check if the error comes from the working directory or the CLI
             if self._cwd and not Path(self._cwd).exists():
-                error = CLIConnectionError(f"Working directory does not exist: {self._cwd}")
+                error = CLIConnectionError(
+                    f"Working directory does not exist: {self._cwd}"
+                )
                 self._exit_error = error
                 raise error from e
             error = CLINotFoundError(f"Claude Code not found at: {self._cli_path}")
@@ -272,17 +276,23 @@ class SubprocessCLITransport(Transport):
 
         # Check if process is still alive (like TypeScript)
         if self._process and self._process.returncode is not None:
-            raise CLIConnectionError(f"Cannot write to terminated process (exit code: {self._process.returncode})")
+            raise CLIConnectionError(
+                f"Cannot write to terminated process (exit code: {self._process.returncode})"
+            )
 
         # Check for exit errors (like TypeScript)
         if self._exit_error:
-            raise CLIConnectionError(f"Cannot write to process that exited with error: {self._exit_error}") from self._exit_error
+            raise CLIConnectionError(
+                f"Cannot write to process that exited with error: {self._exit_error}"
+            ) from self._exit_error
 
         try:
             await self._stdin_stream.send(data)
         except Exception as e:
             self._ready = False  # Mark as not ready (like TypeScript)
-            self._exit_error = CLIConnectionError(f"Failed to write to process stdin: {e}")
+            self._exit_error = CLIConnectionError(
+                f"Failed to write to process stdin: {e}"
+            )
             raise self._exit_error from e
 
     async def end_input(self) -> None:
@@ -302,7 +312,6 @@ class SubprocessCLITransport(Transport):
             raise CLIConnectionError("Not connected")
 
         json_buffer = ""
-        _MAX_BUFFER_SIZE = 1024 * 1024  # 1MB buffer limit
 
         # Process stdout messages
         try:
@@ -314,26 +323,34 @@ class SubprocessCLITransport(Transport):
                 # Accumulate partial JSON until we can parse it
                 # Note: TextReceiveStream can truncate long lines, so we need to buffer
                 # and speculatively parse until we get a complete JSON object
-                json_buffer += line_str
+                json_lines = line_str.split("\n")
 
-                if len(json_buffer) > _MAX_BUFFER_SIZE:
-                    json_buffer = ""
-                    raise SDKJSONDecodeError(
-                        f"JSON message exceeded maximum buffer size of {_MAX_BUFFER_SIZE} bytes",
-                        ValueError(
-                            f"Buffer size {len(json_buffer)} exceeds limit {_MAX_BUFFER_SIZE}"
-                        ),
-                    )
+                for json_line in json_lines:
+                    json_line = json_line.strip()
+                    if not json_line:
+                        continue
 
-                try:
-                    data = json.loads(json_buffer)
-                    json_buffer = ""
-                    yield data
-                except json.JSONDecodeError:
-                    # We are speculatively decoding the buffer until we get
-                    # a full JSON object. If there is an actual issue, we
-                    # raise an error after _MAX_BUFFER_SIZE.
-                    continue
+                    # Keep accumulating partial JSON until we can parse it
+                    json_buffer += json_line
+
+                    if len(json_buffer) > _MAX_BUFFER_SIZE:
+                        json_buffer = ""
+                        raise SDKJSONDecodeError(
+                            f"JSON message exceeded maximum buffer size of {_MAX_BUFFER_SIZE} bytes",
+                            ValueError(
+                                f"Buffer size {len(json_buffer)} exceeds limit {_MAX_BUFFER_SIZE}"
+                            ),
+                        )
+
+                    try:
+                        data = json.loads(json_buffer)
+                        json_buffer = ""
+                        yield data
+                    except json.JSONDecodeError:
+                        # We are speculatively decoding the buffer until we get
+                        # a full JSON object. If there is an actual issue, we
+                        # raise an error after _MAX_BUFFER_SIZE.
+                        continue
 
         except anyio.ClosedResourceError:
             pass

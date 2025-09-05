@@ -200,31 +200,28 @@ class Query:
 
                 context = ToolPermissionContext(
                     signal=None,  # TODO: Add abort signal support
-                    suggestions=permission_request.get("permission_suggestions", [])
+                    suggestions=permission_request.get("permission_suggestions", []),
                 )
 
                 response = await self.can_use_tool(
                     permission_request["tool_name"],
                     permission_request["input"],
-                    context
+                    context,
                 )
 
                 # Convert PermissionResult to expected dict format
                 if isinstance(response, PermissionResultAllow):
-                    response_data = {
-                        "allow": True
-                    }
+                    response_data = {"allow": True}
                     if response.updatedInput is not None:
                         response_data["input"] = response.updatedInput
                     # TODO: Handle updatedPermissions when control protocol supports it
                 elif isinstance(response, PermissionResultDeny):
-                    response_data = {
-                        "allow": False,
-                        "reason": response.message
-                    }
+                    response_data = {"allow": False, "reason": response.message}
                     # TODO: Handle interrupt flag when control protocol supports it
                 else:
-                    raise TypeError(f"Tool permission callback must return PermissionResult (PermissionResultAllow or PermissionResultDeny), got {type(response)}")
+                    raise TypeError(
+                        f"Tool permission callback must return PermissionResult (PermissionResultAllow or PermissionResultDeny), got {type(response)}"
+                    )
 
             elif subtype == "hook_callback":
                 hook_callback_request: SDKHookCallbackRequest = request_data  # type: ignore[assignment]
@@ -248,7 +245,9 @@ class Query:
                 if not server_name or not mcp_message:
                     raise Exception("Missing server_name or message for MCP request")
 
-                response_data = await self._handle_sdk_mcp_request(server_name, mcp_message)
+                response_data = await self._handle_sdk_mcp_request(
+                    server_name, mcp_message
+                )
 
             else:
                 raise Exception(f"Unsupported control request subtype: {subtype}")
@@ -361,23 +360,24 @@ class Query:
                         {
                             "name": tool.name,
                             "description": tool.description,
-                            "inputSchema": tool.inputSchema.model_dump() if tool.inputSchema else {}
+                            "inputSchema": tool.inputSchema.model_dump()
+                            if tool.inputSchema
+                            else {},
                         }
                         for tool in result.root.tools
                     ]
                     return {
                         "jsonrpc": "2.0",
                         "id": message.get("id"),
-                        "result": {"tools": tools_data}
+                        "result": {"tools": tools_data},
                     }
 
             elif method == "tools/call":
                 request = CallToolRequest(
                     method=method,
                     params=CallToolRequestParams(
-                        name=params.get("name"),
-                        arguments=params.get("arguments", {})
-                    )
+                        name=params.get("name"), arguments=params.get("arguments", {})
+                    ),
                 )
                 handler = server.request_handlers.get(CallToolRequest)
                 if handler:
@@ -385,19 +385,25 @@ class Query:
                     # Convert MCP result to JSONRPC response
                     content = []
                     for item in result.root.content:
-                        if hasattr(item, 'text'):
+                        if hasattr(item, "text"):
                             content.append({"type": "text", "text": item.text})
-                        elif hasattr(item, 'data') and hasattr(item, 'mimeType'):
-                            content.append({"type": "image", "data": item.data, "mimeType": item.mimeType})
+                        elif hasattr(item, "data") and hasattr(item, "mimeType"):
+                            content.append(
+                                {
+                                    "type": "image",
+                                    "data": item.data,
+                                    "mimeType": item.mimeType,
+                                }
+                            )
 
                     response_data = {"content": content}
-                    if hasattr(result.root, 'is_error') and result.root.is_error:
+                    if hasattr(result.root, "is_error") and result.root.is_error:
                         response_data["is_error"] = True
 
                     return {
                         "jsonrpc": "2.0",
                         "id": message.get("id"),
-                        "result": response_data
+                        "result": response_data,
                     }
 
             # Add more methods here as MCP SDK adds them (resources, prompts, etc.)

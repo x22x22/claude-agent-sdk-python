@@ -19,29 +19,38 @@ PermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
 
 # Permission Update types (matching TypeScript SDK)
 PermissionUpdateDestination = Literal[
-    "userSettings",
-    "projectSettings", 
-    "localSettings",
-    "session"
+    "userSettings", "projectSettings", "localSettings", "session"
 ]
 
 PermissionBehavior = Literal["allow", "deny", "ask"]
 
+
 @dataclass
 class PermissionRuleValue:
     """Permission rule value."""
+
     toolName: str
     ruleContent: str | None = None
 
-@dataclass 
+
+@dataclass
 class PermissionUpdate:
     """Permission update configuration."""
-    type: Literal["addRules", "replaceRules", "removeRules", "setMode", "addDirectories", "removeDirectories"]
+
+    type: Literal[
+        "addRules",
+        "replaceRules",
+        "removeRules",
+        "setMode",
+        "addDirectories",
+        "removeDirectories",
+    ]
     rules: list[PermissionRuleValue] | None = None
     behavior: PermissionBehavior | None = None
     mode: PermissionMode | None = None
     directories: list[str] | None = None
     destination: PermissionUpdateDestination | None = None
+
 
 # Tool callback types
 @dataclass
@@ -49,29 +58,34 @@ class ToolPermissionContext:
     """Context information for tool permission callbacks."""
 
     signal: Any | None = None  # Future: abort signal support
-    suggestions: list[PermissionUpdate] = field(default_factory=list)  # Permission suggestions from CLI
+    suggestions: list[PermissionUpdate] = field(
+        default_factory=list
+    )  # Permission suggestions from CLI
 
 
 # Match TypeScript's PermissionResult structure
 @dataclass
 class PermissionResultAllow:
     """Allow permission result."""
+
     behavior: Literal["allow"] = "allow"
     updatedInput: dict[str, Any] | None = None
     updatedPermissions: list[PermissionUpdate] | None = None
 
+
 @dataclass
 class PermissionResultDeny:
     """Deny permission result."""
-    behavior: Literal["deny"] = "deny" 
+
+    behavior: Literal["deny"] = "deny"
     message: str = ""
     interrupt: bool = False
+
 
 PermissionResult = PermissionResultAllow | PermissionResultDeny
 
 CanUseTool = Callable[
-    [str, dict[str, Any], ToolPermissionContext],
-    Awaitable[PermissionResult]
+    [str, dict[str, Any], ToolPermissionContext], Awaitable[PermissionResult]
 ]
 
 
@@ -85,7 +99,7 @@ class HookContext:
 
 HookCallback = Callable[
     [dict[str, Any], str | None, HookContext],  # input, tool_use_id, context
-    Awaitable[dict[str, Any]]  # response data
+    Awaitable[dict[str, Any]],  # response data
 ]
 
 
@@ -259,6 +273,7 @@ class SDKControlPermissionRequest(TypedDict):
     # TODO: Add PermissionUpdate type here
     permission_suggestions: list[Any] | None
     blocked_path: str | None
+
 
 class SDKControlInitializeRequest(TypedDict):
     subtype: Literal["initialize"]

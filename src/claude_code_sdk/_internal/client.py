@@ -29,8 +29,8 @@ class InternalClient:
             for matcher in matchers:
                 # Convert HookMatcher to internal dict format
                 internal_matcher = {
-                    "matcher": matcher.matcher if hasattr(matcher, 'matcher') else None,
-                    "hooks": matcher.hooks if hasattr(matcher, 'hooks') else []
+                    "matcher": matcher.matcher if hasattr(matcher, "matcher") else None,
+                    "hooks": matcher.hooks if hasattr(matcher, "hooks") else [],
                 }
                 internal_hooks[event].append(internal_matcher)
         return internal_hooks
@@ -65,7 +65,9 @@ class InternalClient:
             transport=chosen_transport,
             is_streaming_mode=is_streaming,
             can_use_tool=options.can_use_tool,
-            hooks=self._convert_hooks_to_internal_format(options.hooks) if options.hooks else None,
+            hooks=self._convert_hooks_to_internal_format(options.hooks)
+            if options.hooks
+            else None,
             sdk_mcp_servers=sdk_mcp_servers,
         )
 
