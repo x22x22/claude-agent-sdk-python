@@ -23,8 +23,6 @@ from . import Transport
 
 logger = logging.getLogger(__name__)
 
-_MAX_BUFFER_SIZE = 1024 * 1024  # 1MB buffer limit
-
 
 class SubprocessCLITransport(Transport):
     """Subprocess transport using Claude Code CLI."""
@@ -283,43 +281,20 @@ class SubprocessCLITransport(Transport):
         if not self._process or not self._stdout_stream:
             raise CLIConnectionError("Not connected")
 
-        json_buffer = ""
-
         # Process stdout messages
         try:
             async for line in self._stdout_stream:
-                line_str = line.strip()
-                if not line_str:
+                line = line.strip()
+                if not line:
                     continue
 
-                json_lines = line_str.split("\n")
-
-                for json_line in json_lines:
-                    json_line = json_line.strip()
-                    if not json_line:
-                        continue
-
-                    # Keep accumulating partial JSON until we can parse it
-                    json_buffer += json_line
-
-                    if len(json_buffer) > _MAX_BUFFER_SIZE:
-                        json_buffer = ""
-                        raise SDKJSONDecodeError(
-                            f"JSON message exceeded maximum buffer size of {_MAX_BUFFER_SIZE} bytes",
-                            ValueError(
-                                f"Buffer size {len(json_buffer)} exceeds limit {_MAX_BUFFER_SIZE}"
-                            ),
-                        )
-
-                    try:
-                        data = json.loads(json_buffer)
-                        json_buffer = ""
-                        yield data
-                    except json.JSONDecodeError:
-                        # We are speculatively decoding the buffer until we get
-                        # a full JSON object. If there is an actual issue, we
-                        # raise an error after _MAX_BUFFER_SIZE.
-                        continue
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError as e:
+                    raise SDKJSONDecodeError(
+                        f"Invalid JSON from CLI: {line[:100]}",
+                        e,
+                    ) from e
 
         except anyio.ClosedResourceError:
             pass
