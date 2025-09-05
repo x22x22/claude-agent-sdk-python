@@ -273,9 +273,6 @@ class SubprocessCLITransport(Transport):
             with suppress(Exception):
                 await self._stdin_stream.aclose()
             self._stdin_stream = None
-        if self._process and self._process.stdin:
-            with suppress(Exception):
-                await self._process.stdin.aclose()
 
     def read_messages(self) -> AsyncIterator[dict[str, Any]]:
         """Read and parse messages from the transport."""
@@ -372,10 +369,4 @@ class SubprocessCLITransport(Transport):
 
     def is_ready(self) -> bool:
         """Check if transport is ready for communication."""
-        return (
-            self._ready
-            and self._process is not None
-            and self._process.returncode is None
-        )
-
-    # Remove interrupt and control request methods - these now belong in Query class
+        return self._ready
