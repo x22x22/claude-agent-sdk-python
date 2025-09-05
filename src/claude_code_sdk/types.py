@@ -5,10 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
-try:
-    from typing import NotRequired  # Python 3.11+
-except ImportError:
-    from typing_extensions import NotRequired  # For Python < 3.11 compatibility
+from typing_extensions import NotRequired
 
 if TYPE_CHECKING:
     from mcp.server import Server as McpServer
@@ -29,8 +26,8 @@ PermissionBehavior = Literal["allow", "deny", "ask"]
 class PermissionRuleValue:
     """Permission rule value."""
 
-    toolName: str
-    ruleContent: str | None = None
+    tool_name: str
+    rule_content: str | None = None
 
 
 @dataclass
@@ -69,8 +66,9 @@ class PermissionResultAllow:
     """Allow permission result."""
 
     behavior: Literal["allow"] = "allow"
-    updatedInput: dict[str, Any] | None = None
-    updatedPermissions: list[PermissionUpdate] | None = None
+    updated_input: dict[str, Any] | None = None
+    updated_permissions: list[PermissionUpdate] | None = None
+
 
 
 @dataclass

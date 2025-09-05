@@ -138,7 +138,7 @@ class TestToolPermissionCallbacks:
             # Modify the input to add safety flag
             modified_input = input_data.copy()
             modified_input["safe_mode"] = True
-            return PermissionResultAllow(updatedInput=modified_input)
+            return PermissionResultAllow(updated_input=modified_input)
 
         transport = MockTransport()
         query = Query(
