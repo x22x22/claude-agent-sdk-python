@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import shutil
-import sys
 from collections.abc import AsyncIterable, AsyncIterator
 from contextlib import suppress
 from pathlib import Path
@@ -181,9 +180,12 @@ class SubprocessCLITransport(Transport):
             if self._cwd:
                 process_env["PWD"] = self._cwd
 
-            # Only output stderr if customer explicitly requested debug output
+            # Only output stderr if customer explicitly requested debug output and provided a file object
             stderr_dest = (
-                sys.stderr if "debug-to-stderr" in self._options.extra_args else None
+                self._options.debug_stderr
+                if "debug-to-stderr" in self._options.extra_args
+                and self._options.debug_stderr
+                else None
             )
 
             self._process = await anyio.open_process(
