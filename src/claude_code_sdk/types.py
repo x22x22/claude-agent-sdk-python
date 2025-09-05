@@ -70,7 +70,6 @@ class PermissionResultAllow:
     updated_permissions: list[PermissionUpdate] | None = None
 
 
-
 @dataclass
 class PermissionResultDeny:
     """Deny permission result."""
