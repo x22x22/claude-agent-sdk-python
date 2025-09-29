@@ -1,5 +1,7 @@
 # Claude Code SDK for Python
 
+> **⚠️ DEPRECATED**: This package has been deprecated and is no longer maintained. Please migrate to the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-python) (`claude-agent-sdk`).
+
 Python SDK for Claude Code. See the [Claude Code SDK documentation](https://docs.anthropic.com/en/docs/claude-code/sdk/sdk-python) for more information.
 
 ## Installation
