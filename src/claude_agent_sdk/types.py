@@ -348,6 +348,7 @@ class ClaudeAgentOptions:
     max_turns: int | None = None
     disallowed_tools: list[str] = field(default_factory=list)
     model: str | None = None
+    fallback_model: str | None = None
     permission_prompt_tool_name: str | None = None
     cwd: str | Path | None = None
     settings: str | None = None

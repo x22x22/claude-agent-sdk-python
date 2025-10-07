@@ -149,3 +149,17 @@ class TestOptions:
         )
         assert options.model == "claude-sonnet-4-5"
         assert options.permission_prompt_tool_name == "CustomTool"
+
+    def test_claude_code_options_with_fallback_model(self):
+        """Test Options with fallback model specification."""
+        options = ClaudeAgentOptions(
+            model="claude-sonnet-4-5", fallback_model="claude-haiku-4-1"
+        )
+        assert options.model == "claude-sonnet-4-5"
+        assert options.fallback_model == "claude-haiku-4-1"
+
+    def test_claude_code_options_fallback_model_defaults_to_none(self):
+        """Test Options fallback model defaults to None."""
+        options = ClaudeAgentOptions(model="claude-sonnet-4-5")
+        assert options.model == "claude-sonnet-4-5"
+        assert options.fallback_model is None

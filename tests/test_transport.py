@@ -125,6 +125,39 @@ class TestSubprocessCLITransport:
         assert "--max-turns" in cmd
         assert "5" in cmd
 
+    def test_build_command_with_fallback_model(self):
+        """Test building CLI command with fallback model option."""
+        transport = SubprocessCLITransport(
+            prompt="test",
+            options=ClaudeAgentOptions(
+                model="claude-sonnet-4-5",
+                fallback_model="claude-haiku-4-1",
+            ),
+            cli_path="/usr/bin/claude",
+        )
+
+        cmd = transport._build_command()
+        assert "--model" in cmd
+        assert "claude-sonnet-4-5" in cmd
+        assert "--fallback-model" in cmd
+        assert "claude-haiku-4-1" in cmd
+
+    def test_build_command_without_fallback_model(self):
+        """Test building CLI command without fallback model (should be omitted)."""
+        transport = SubprocessCLITransport(
+            prompt="test",
+            options=ClaudeAgentOptions(
+                model="claude-sonnet-4-5",
+                # No fallback_model specified
+            ),
+            cli_path="/usr/bin/claude",
+        )
+
+        cmd = transport._build_command()
+        assert "--model" in cmd
+        assert "claude-sonnet-4-5" in cmd
+        assert "--fallback-model" not in cmd
+
     def test_build_command_with_add_dirs(self):
         """Test building CLI command with add_dirs option."""
         from pathlib import Path
