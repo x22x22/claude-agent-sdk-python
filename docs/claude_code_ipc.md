@@ -11,6 +11,7 @@
 - 若未设置 `CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK`，SDK 会在建立传输前执行 `claude -v` 并校验版本号是否不低于 `2.0.0`，不足时打印警告信息。【F:src/claude_agent_sdk/_internal/transport/subprocess_cli.py†L458-L498】
 - 非流式模式使用 `--print -- <prompt>` 将初始提示语写入 CLI；流式模式保持 stdin 打开以传输 JSON 行并在输入结束后调用 `end_input()` 关闭写端。【F:src/claude_agent_sdk/_internal/transport/subprocess_cli.py†L194-L261】【F:src/claude_agent_sdk/_internal/query.py†L513-L521】
 - stderr 可交由用户回调或调试流处理；所有异步任务组与子进程在关闭时都会显式清理，避免资源泄漏。【F:src/claude_agent_sdk/_internal/transport/subprocess_cli.py†L225-L346】
+- 连接前 `query()` 与 `ClaudeSDKClient` 会分别设置 `CLAUDE_CODE_ENTRYPOINT`（值为 `sdk-py` / `sdk-py-client`）用于标识调用入口；`SubprocessCLITransport` 会在合并环境变量时强制写入 `CLAUDE_CODE_ENTRYPOINT` 与 `CLAUDE_AGENT_SDK_VERSION`，供 CLI 侧进行客户端识别与兼容性判断。【F:src/claude_agent_sdk/query.py†L12-L95】【F:src/claude_agent_sdk/client.py†L1-L116】【F:src/claude_agent_sdk/_internal/transport/subprocess_cli.py†L204-L303】
 
 ### 1.2 STDIO 信道与消息调度
 - 所有 IPC 报文均以换行分隔 JSON (`application/jsonl`) 传输。`SubprocessCLITransport` 会在读取 stdout 时累积缓冲并反复解析，超出最大缓冲或遇到无效 JSON 时抛出 `CLIJSONDecodeError`；若 CLI 以非零码退出则抛出 `ProcessError`。【F:src/claude_agent_sdk/_internal/transport/subprocess_cli.py†L352-L456】
