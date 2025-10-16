@@ -22,6 +22,12 @@
 
 启动过程中还会根据 `ClaudeAgentOptions` 合并用户环境变量、设置工作目录、选择运行用户以及决定是否管道 stderr，从而允许在受限环境中精细化控制 CLI 进程的行为。【F:src/claude_agent_sdk/_internal/transport/subprocess_cli.py†L214-L303】
 
+### 1.4 初始化握手返回值
+- 成功连接后 `Query.initialize()` 会把 CLI 通过 `control_response.success` 返回的初始化负载缓存到 `_initialization_result`，供后续查询使用。【F:src/claude_agent_sdk/_internal/query.py†L131-L146】
+- `ClaudeSDKClient.get_server_info()` 直接回传该结构，其中通常包含 CLI 公布的命令列表、输出风格以及能力标志，帮助上层根据 CLI 版本裁剪体验。【F:src/claude_agent_sdk/client.py†L263-L296】
+
+> CLI 返回的字段会随版本演进而扩展；SDK 仅做透明透传，调用方应做好可选字段判空处理。
+
 ## 2. IPC 接口清单
 | 接口方向 | 触发方 | 报文类型 | 描述 | Schema 小节 |
 | --- | --- | --- | --- | --- |
@@ -159,6 +165,9 @@ components:
                   items:
                     type: string
       description: 流式模式下由 `_send_control_request` 触发，构建自注册的 Hook 配置。【F:src/claude_agent_sdk/_internal/query.py†L116-L145】
+    InitializeSuccessPayload:
+      type: object
+      description: CLI 在初始化成功时返回的元数据，典型字段包含 `commands`（可用指令）、`output_style`/`output_styles`（当前与可选输出格式）及其他能力标志，SDK 不做强制约束并原样缓存。【F:src/claude_agent_sdk/_internal/query.py†L131-L146】【F:src/claude_agent_sdk/client.py†L263-L296】
     InterruptRequest:
       type: object
       required: [subtype]
@@ -258,9 +267,11 @@ components:
         request_id:
           type: string
         response:
-          type: object
+          oneOf:
+            - $ref: '#/components/schemas/InitializeSuccessPayload'
+            - type: object
           nullable: true
-      description: 控制请求成功响应，`response` 字段内容依赖具体子类型。【F:src/claude_agent_sdk/_internal/query.py†L234-L289】
+      description: 控制请求成功响应，`response` 字段内容依赖具体子类型；初始化场景会返回 CLI 公布的元数据。【F:src/claude_agent_sdk/_internal/query.py†L234-L289】
     ControlErrorResponse:
       type: object
       required: [subtype, request_id, error]
