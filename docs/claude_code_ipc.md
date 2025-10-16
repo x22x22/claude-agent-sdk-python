@@ -35,6 +35,7 @@
 | CLI → SDK | CLI | `control_request.hook_callback` | CLI 触发已注册 Hook，SDK 返回规范化结果字段。【F:src/claude_agent_sdk/_internal/query.py†L258-L273】 | [3.2.3](#323-control_request-cli--sdk) |
 | CLI → SDK | CLI | `control_request.mcp_message` | CLI 将 MCP JSON-RPC 报文交由 SDK 托管的 MCP 服务器处理。【F:src/claude_agent_sdk/_internal/query.py†L274-L289】【F:src/claude_agent_sdk/_internal/query.py†L357-L489】 | [3.2.3](#323-control_request-cli--sdk) |
 | CLI → SDK | CLI | `control_cancel_request` | CLI 侧的取消通知，当前 Python SDK 占位忽略该报文。【F:src/claude_agent_sdk/_internal/query.py†L186-L189】 | [3.2.4](#324-control_cancel_request-cli--sdk) |
+| CLI → SDK | CLI | `user` 会话消息 | CLI 会在会话流中回放或补充用户消息，保持上下文完整性并驱动 Hook/工具分支逻辑，由 `message_parser` 解析为 `UserMessage` 对象。【F:src/claude_agent_sdk/_internal/message_parser.py†L34-L66】 | [3.3](#33-会话消息) |
 | CLI → SDK | CLI | `assistant`/`result`/`system`/`stream_event` 等会话消息 | Claude Code 主输出流，包含助手内容、执行统计与流式事件，由 `message_parser` 解析为强类型对象。【F:src/claude_agent_sdk/_internal/query.py†L191-L204】【F:src/claude_agent_sdk/_internal/message_parser.py†L24-L172】 | [3.3](#33-会话消息) |
 
 ## 3. 报文规范（OpenAPI 风格）
@@ -107,6 +108,7 @@ paths:
             application/jsonl:
               schema:
                 oneOf:
+                  - $ref: '#/components/schemas/UserMessageEnvelope'
                   - $ref: '#/components/schemas/AssistantMessageEnvelope'
                   - $ref: '#/components/schemas/ResultMessageEnvelope'
                   - $ref: '#/components/schemas/SystemMessageEnvelope'
@@ -297,7 +299,7 @@ components:
         parent_tool_use_id:
           type: string
           nullable: true
-      description: SDK 写入 CLI 的用户消息封装。【F:src/claude_agent_sdk/client.py†L170-L199】
+      description: SDK 写入 CLI 的用户消息封装，同时也被 CLI 回放用户输入时复用同一结构。【F:src/claude_agent_sdk/client.py†L170-L199】【F:src/claude_agent_sdk/_internal/message_parser.py†L34-L66】
     UserMessagePayload:
       type: object
       required: [role, content]
@@ -450,6 +452,7 @@ CLI 可发送 `{"type": "control_cancel_request"}` 以尝试取消控制请求�
 
 ### 3.3 会话消息
 CLI 输出的会话消息会被 `message_parser` 解析为 `UserMessage`、`AssistantMessage`、`SystemMessage`、`ResultMessage` 与 `StreamEvent` dataclass，覆盖对话内容、工具调用、成本统计及流式事件等场景。【F:src/claude_agent_sdk/_internal/message_parser.py†L24-L172】【F:src/claude_agent_sdk/types.py†L409-L498】
+其中 `UserMessage` 可出现在 CLI 输出流中，用于回放用户输入或在多阶段流程中注入追加指令，确保后续 Hook、工具调用与 MCP 会话获得完整上下文。【F:src/claude_agent_sdk/_internal/message_parser.py†L34-L66】
 
 ### 3.4 输入流事件
 - **字符串 prompt**：`ClaudeSDKClient.query()` 会构造 `{"type": "user"}` 信封并写入 CLI。【F:src/claude_agent_sdk/client.py†L170-L199】
