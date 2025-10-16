@@ -16,6 +16,11 @@
 - 所有 IPC 报文均以换行分隔 JSON (`application/jsonl`) 传输。`SubprocessCLITransport` 会在读取 stdout 时累积缓冲并反复解析，超出最大缓冲或遇到无效 JSON 时抛出 `CLIJSONDecodeError`；若 CLI 以非零码退出则抛出 `ProcessError`。【F:src/claude_agent_sdk/_internal/transport/subprocess_cli.py†L352-L456】
 - `Query` 在读取消息时优先处理控制报文（`control_response` / `control_request` / `control_cancel_request`），其余类型投递至会话消息通道；当 CLI 发来控制请求时会根据 subtype 调用权限回调、Hook 或 MCP 桥接，并以 JSON 行写回结果或错误。【F:src/claude_agent_sdk/_internal/query.py†L154-L316】
 
+### 1.3 CLI 参数映射与运行时配置
+`ClaudeAgentOptions` 暴露的主要开关都会在 `_build_command()` 中转换为命令行参数，涵盖系统提示词（`--system-prompt`/`--append-system-prompt`）、工具白名单/黑名单（`--allowedTools`/`--disallowedTools`）、轮次数限制（`--max-turns`）、模型/权限模式相关开关（`--model`、`--permission-mode`、`--permission-prompt-tool`、`--continue`、`--resume`、`--settings`、`--setting-sources`）、目录挂载（`--add-dir`）、MCP 配置（`--mcp-config`，会在传递 SDK 自建服务器时移除 `instance` 字段）、流式消息控制（`--include-partial-messages`、`--fork-session`）、多 Agent 定义（`--agents`）以及自定义扩展标志（`extra_args` 会被透传为 `--<flag> <value>` 或布尔开关）。【F:src/claude_agent_sdk/_internal/transport/subprocess_cli.py†L87-L193】
+
+启动过程中还会根据 `ClaudeAgentOptions` 合并用户环境变量、设置工作目录、选择运行用户以及决定是否管道 stderr，从而允许在受限环境中精细化控制 CLI 进程的行为。【F:src/claude_agent_sdk/_internal/transport/subprocess_cli.py†L214-L303】
+
 ## 2. IPC 接口清单
 | 接口方向 | 触发方 | 报文类型 | 描述 | Schema 小节 |
 | --- | --- | --- | --- | --- |
@@ -430,6 +435,14 @@ SDK 在 `_send_control_request` 中将控制请求序列化为 JSON 行写入 CL
 
 #### 3.2.3 `control_request`（CLI → SDK）
 CLI 通过 stdout 推送控制请求，`Query` 在 `_handle_control_request` 中根据 subtype 分派。`can_use_tool` 会调用用户权限回调，`hook_callback` 会执行已注册 Hook，`mcp_message` 会将 JSON-RPC 报文转发给 MCP Server 并返回封装后的结果；未识别的 subtype 会返回错误响应。【F:src/claude_agent_sdk/_internal/query.py†L206-L315】
+
+##### MCP 桥接支持的 JSON-RPC 方法
+- `initialize`：返回 `protocolVersion`、`tools` 能力和 `serverInfo`，当前仅声明工具能力且未实现 `listChanged` 推送。【F:src/claude_agent_sdk/_internal/query.py†L360-L410】
+- `tools/list`：调用 MCP 服务器的 `ListToolsRequest` 处理器并将工具元数据（名称、描述、输入 Schema）序列化为 JSON-RPC 结果。【F:src/claude_agent_sdk/_internal/query.py†L411-L435】
+- `tools/call`：将 CLI 传入的工具名称与参数组装为 `CallToolRequest` 并转换返回内容块（文本、图片等），必要时透出 `is_error` 标志。【F:src/claude_agent_sdk/_internal/query.py†L437-L469】
+- `notifications/initialized`：简单确认通知并回传空结果。未被列出的其他方法会返回 `-32601` 错误，异常情况下统一映射为 `-32603`。【F:src/claude_agent_sdk/_internal/query.py†L471-L489】
+
+若 CLI 指定的 `server_name` 未注册，则立即返回 `-32601` 错误并复用原始请求 `id`，以便 CLI 侧正确回溯失败原因。【F:src/claude_agent_sdk/_internal/query.py†L373-L381】
 
 #### 3.2.4 `control_cancel_request`（CLI → SDK）
 CLI 可发送 `{"type": "control_cancel_request"}` 以尝试取消控制请求；Python SDK 当前仅记录日志并忽略该报文，尚未实现取消逻辑。【F:src/claude_agent_sdk/_internal/query.py†L186-L189】
