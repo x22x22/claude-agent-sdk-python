@@ -444,6 +444,9 @@ components:
 #### 3.2.1 `control_request`（SDK → CLI）
 SDK 在 `_send_control_request` 中将控制请求序列化为 JSON 行写入 CLI stdin，并等待匹配 `request_id` 的 `control_response`；发送失败会抛出 `CLIConnectionError` 并终止后续写入。【F:src/claude_agent_sdk/_internal/query.py†L317-L355】【F:src/claude_agent_sdk/_internal/transport/subprocess_cli.py†L352-L378】
 
+- **流式模式限制**：仅当 `Query` 运行在流式模式（`is_streaming_mode=True`）时才会发送控制请求，否则直接返回 `None`，提醒调用方无需初始化额外控制通道。【F:src/claude_agent_sdk/_internal/query.py†L118-L144】
+- **响应超时**：SDK 会为每个控制请求注册事件并在 60 秒超时时间内等待响应；若 CLI 未在期限内返回 `control_response`，SDK 将清理挂起状态并抛出 `Control request timeout` 异常。【F:src/claude_agent_sdk/_internal/query.py†L317-L358】
+
 #### 3.2.2 `control_response`（SDK ↔ CLI）
 当 CLI 返回控制响应或 SDK 处理 CLI 控制请求后，双方都会写入 `ControlSuccessResponse` 或 `ControlErrorResponse`。成功响应中常见字段包括工具授权结果（`behavior`、`updatedInput`、`updatedPermissions`、`message`、`interrupt`）、Hook 回调输出（`async`、`continue`、`hookSpecificOutput` 等字段会在 Python 端与 CLI 之间转换为 `async_`/`continue_`）以及 MCP 桥接响应（`mcp_response`）。【F:src/claude_agent_sdk/_internal/query.py†L234-L289】
 
