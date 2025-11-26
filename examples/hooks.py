@@ -96,7 +96,7 @@ async def review_tool_output(
             "hookSpecificOutput": {
                 "hookEventName": "PostToolUse",
                 "additionalContext": "The command encountered an error. You may want to try a different approach.",
-            }
+            },
         }
 
     return {}
@@ -156,7 +156,9 @@ async def stop_on_error_hook(
 async def example_pretooluse() -> None:
     """Basic example demonstrating hook protection."""
     print("=== PreToolUse Example ===")
-    print("This example demonstrates how PreToolUse can block some bash commands but not others.\n")
+    print(
+        "This example demonstrates how PreToolUse can block some bash commands but not others.\n"
+    )
 
     # Configure hooks using ClaudeAgentOptions
     options = ClaudeAgentOptions(
@@ -165,7 +167,7 @@ async def example_pretooluse() -> None:
             "PreToolUse": [
                 HookMatcher(matcher="Bash", hooks=[check_bash_command]),
             ],
-        }
+        },
     )
 
     async with ClaudeSDKClient(options=options) as client:
@@ -218,7 +220,9 @@ async def example_userpromptsubmit() -> None:
 async def example_posttooluse() -> None:
     """Demonstrate PostToolUse hook with reason and systemMessage fields."""
     print("=== PostToolUse Example ===")
-    print("This example shows how PostToolUse can provide feedback with reason and systemMessage.\n")
+    print(
+        "This example shows how PostToolUse can provide feedback with reason and systemMessage.\n"
+    )
 
     options = ClaudeAgentOptions(
         allowed_tools=["Bash"],
@@ -226,11 +230,13 @@ async def example_posttooluse() -> None:
             "PostToolUse": [
                 HookMatcher(matcher="Bash", hooks=[review_tool_output]),
             ],
-        }
+        },
     )
 
     async with ClaudeSDKClient(options=options) as client:
-        print("User: Run a command that will produce an error: ls /nonexistent_directory")
+        print(
+            "User: Run a command that will produce an error: ls /nonexistent_directory"
+        )
         await client.query("Run this command: ls /nonexistent_directory")
 
         async for msg in client.receive_response():
@@ -242,7 +248,9 @@ async def example_posttooluse() -> None:
 async def example_decision_fields() -> None:
     """Demonstrate permissionDecision, reason, and systemMessage fields."""
     print("=== Permission Decision Example ===")
-    print("This example shows how to use permissionDecision='allow'/'deny' with reason and systemMessage.\n")
+    print(
+        "This example shows how to use permissionDecision='allow'/'deny' with reason and systemMessage.\n"
+    )
 
     options = ClaudeAgentOptions(
         allowed_tools=["Write", "Bash"],
@@ -251,14 +259,16 @@ async def example_decision_fields() -> None:
             "PreToolUse": [
                 HookMatcher(matcher="Write", hooks=[strict_approval_hook]),
             ],
-        }
+        },
     )
 
     async with ClaudeSDKClient(options=options) as client:
         # Test 1: Try to write to a file with "important" in the name (should be blocked)
         print("Test 1: Trying to write to important_config.txt (should be blocked)...")
         print("User: Write 'test' to important_config.txt")
-        await client.query("Write the text 'test data' to a file called important_config.txt")
+        await client.query(
+            "Write the text 'test data' to a file called important_config.txt"
+        )
 
         async for msg in client.receive_response():
             display_message(msg)
@@ -268,7 +278,9 @@ async def example_decision_fields() -> None:
         # Test 2: Write to a regular file (should be approved)
         print("Test 2: Trying to write to regular_file.txt (should be approved)...")
         print("User: Write 'test' to regular_file.txt")
-        await client.query("Write the text 'test data' to a file called regular_file.txt")
+        await client.query(
+            "Write the text 'test data' to a file called regular_file.txt"
+        )
 
         async for msg in client.receive_response():
             display_message(msg)
@@ -279,7 +291,9 @@ async def example_decision_fields() -> None:
 async def example_continue_control() -> None:
     """Demonstrate continue and stopReason fields for execution control."""
     print("=== Continue/Stop Control Example ===")
-    print("This example shows how to use continue_=False with stopReason to halt execution.\n")
+    print(
+        "This example shows how to use continue_=False with stopReason to halt execution.\n"
+    )
 
     options = ClaudeAgentOptions(
         allowed_tools=["Bash"],
@@ -287,12 +301,14 @@ async def example_continue_control() -> None:
             "PostToolUse": [
                 HookMatcher(matcher="Bash", hooks=[stop_on_error_hook]),
             ],
-        }
+        },
     )
 
     async with ClaudeSDKClient(options=options) as client:
         print("User: Run a command that outputs 'CRITICAL ERROR'")
-        await client.query("Run this bash command: echo 'CRITICAL ERROR: system failure'")
+        await client.query(
+            "Run this bash command: echo 'CRITICAL ERROR: system failure'"
+        )
 
         async for msg in client.receive_response():
             display_message(msg)

@@ -149,3 +149,17 @@ class TestOptions:
         )
         assert options.model == "claude-sonnet-4-5"
         assert options.permission_prompt_tool_name == "CustomTool"
+
+    def test_claude_code_options_with_keepalive(self):
+        """Test Options with keepalive setting."""
+        # Default is True
+        options = ClaudeAgentOptions()
+        assert options.keepalive is True
+
+        # Can be set to False
+        options_no_keepalive = ClaudeAgentOptions(keepalive=False)
+        assert options_no_keepalive.keepalive is False
+
+        # Can be explicitly set to True
+        options_keepalive = ClaudeAgentOptions(keepalive=True)
+        assert options_keepalive.keepalive is True

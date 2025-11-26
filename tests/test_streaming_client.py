@@ -833,3 +833,130 @@ class TestClaudeSDKClientEdgeCases:
                     assert isinstance(messages[-1], ResultMessage)
 
         anyio.run(_test)
+
+    def test_keepalive_multi_turn_conversation(self):
+        """Test that process stays alive between multiple queries in a session."""
+
+        async def _test():
+            with patch(
+                "claude_agent_sdk._internal.transport.subprocess_cli.SubprocessCLITransport"
+            ) as mock_transport_class:
+                mock_transport = create_mock_transport()
+                mock_transport_class.return_value = mock_transport
+
+                # Track the number of times connect is called
+                connect_count = 0
+                original_connect = mock_transport.connect
+
+                async def track_connect():
+                    nonlocal connect_count
+                    connect_count += 1
+                    if asyncio.iscoroutinefunction(original_connect):
+                        await original_connect()
+
+                mock_transport.connect = track_connect
+
+                # Track message count for multi-turn
+                message_idx = 0
+
+                async def mock_receive():
+                    nonlocal message_idx
+                    # First handle initialization
+                    await asyncio.sleep(0.01)
+                    written = mock_transport.write.call_args_list
+                    for call in written:
+                        if call:
+                            data = call[0][0]
+                            try:
+                                msg = json.loads(data.strip())
+                                if (
+                                    msg.get("type") == "control_request"
+                                    and msg.get("request", {}).get("subtype")
+                                    == "initialize"
+                                ):
+                                    yield {
+                                        "type": "control_response",
+                                        "response": {
+                                            "request_id": msg.get("request_id"),
+                                            "subtype": "success",
+                                            "commands": [],
+                                            "output_style": "default",
+                                        },
+                                    }
+                                    break
+                            except (json.JSONDecodeError, KeyError, AttributeError):
+                                pass
+
+                    # Keep yielding responses as queries come in
+                    while True:
+                        # Wait for user messages
+                        await asyncio.sleep(0.05)
+
+                        # Check for new user messages
+                        for call in mock_transport.write.call_args_list[message_idx:]:
+                            data = call[0][0]
+                            try:
+                                msg = json.loads(data.strip())
+                                if msg.get("type") == "user":
+                                    message_idx += 1
+                                    yield {
+                                        "type": "assistant",
+                                        "message": {
+                                            "role": "assistant",
+                                            "content": [
+                                                {
+                                                    "type": "text",
+                                                    "text": f"Response to: {msg['message']['content']}",
+                                                }
+                                            ],
+                                            "model": "claude-opus-4-1-20250805",
+                                        },
+                                    }
+                                    yield {
+                                        "type": "result",
+                                        "subtype": "success",
+                                        "duration_ms": 100,
+                                        "duration_api_ms": 80,
+                                        "is_error": False,
+                                        "num_turns": 1,
+                                        "session_id": "test",
+                                        "total_cost_usd": 0.001,
+                                    }
+                            except (json.JSONDecodeError, KeyError, AttributeError):
+                                pass
+
+                        if message_idx >= 3:  # After 3 queries, stop
+                            break
+
+                mock_transport.read_messages = mock_receive
+
+                # Use keepalive option (default is True)
+                options = ClaudeAgentOptions(keepalive=True)
+                async with ClaudeSDKClient(options=options) as client:
+                    # First query
+                    await client.query("Query 1")
+                    async for msg in client.receive_response():
+                        if isinstance(msg, ResultMessage):
+                            break
+
+                    # Second query - process should still be alive
+                    await client.query("Query 2")
+                    async for msg in client.receive_response():
+                        if isinstance(msg, ResultMessage):
+                            break
+
+                    # Third query - process should still be alive
+                    await client.query("Query 3")
+                    async for msg in client.receive_response():
+                        if isinstance(msg, ResultMessage):
+                            break
+
+                # Verify connect was only called once (process stayed alive)
+                assert connect_count == 1, (
+                    f"Expected 1 connect call, got {connect_count}"
+                )
+
+                # Verify close was called once at the end
+                mock_transport.close.assert_called_once()
+
+        anyio.run(_test)
