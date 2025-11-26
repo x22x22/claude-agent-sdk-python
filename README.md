@@ -87,6 +87,45 @@ Code. See [src/claude_agent_sdk/client.py](src/claude_agent_sdk/client.py).
 
 Unlike `query()`, `ClaudeSDKClient` additionally enables **custom tools** and **hooks**, both of which can be defined as Python functions.
 
+### Keepalive Behavior
+
+`ClaudeSDKClient` maintains a persistent connection to the Claude process throughout the session. This **keepalive** behavior means:
+
+- The Claude process stays alive between multiple `query()` calls
+- Conversation context is preserved across queries
+- No subprocess restart overhead between interactions
+- Session ends only when you explicitly call `disconnect()` or exit the context manager
+
+```python
+from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
+
+# The keepalive option is True by default
+options = ClaudeAgentOptions(
+    keepalive=True,  # This is the default
+    system_prompt="Remember everything I tell you."
+)
+
+async with ClaudeSDKClient(options=options) as client:
+    # First query - establishes session
+    await client.query("My name is Alice.")
+    async for msg in client.receive_response():
+        print(msg)
+
+    # Second query - same session, context preserved
+    await client.query("What's my name?")
+    async for msg in client.receive_response():
+        print(msg)
+
+    # Third query - still the same session
+    await client.query("Tell me a joke.")
+    async for msg in client.receive_response():
+        print(msg)
+
+# Claude process closes here when context manager exits
+```
+
+For a complete example, see [examples/keepalive.py](examples/keepalive.py).
+
 ### Custom Tools (as In-Process SDK MCP Servers)
 
 A **custom tool** is a Python function that you can offer to Claude, for Claude to invoke as needed.

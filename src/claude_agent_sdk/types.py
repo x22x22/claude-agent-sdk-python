@@ -577,6 +577,14 @@ class ClaudeAgentOptions:
     # Example: {"type": "json_schema", "schema": {"type": "object", "properties": {...}}}
     output_format: dict[str, Any] | None = None
 
+    # Keepalive mode for multi-turn conversations
+    # When True with ClaudeSDKClient, the Claude process stays alive between
+    # queries until the session is explicitly closed via disconnect() or context
+    # manager exit. This is the default behavior for ClaudeSDKClient.
+    # When True with query(), the process will remain running until all messages
+    # are consumed and the session ends naturally.
+    keepalive: bool = True
+
 
 # SDK Control Protocol
 class SDKControlInterruptRequest(TypedDict):

@@ -21,16 +21,13 @@ async def main():
     # Create options with stderr callback and enable debug mode
     options = ClaudeAgentOptions(
         stderr=stderr_callback,
-        extra_args={"debug-to-stderr": None}  # Enable debug output
+        extra_args={"debug-to-stderr": None},  # Enable debug output
     )
 
     # Run a query
     print("Running query with stderr capture...")
-    async for message in query(
-        prompt="What is 2+2?",
-        options=options
-    ):
-        if hasattr(message, 'content'):
+    async for message in query(prompt="What is 2+2?", options=options):
+        if hasattr(message, "content"):
             if isinstance(message.content, str):
                 print(f"Response: {message.content}")
 
