@@ -679,6 +679,14 @@ class ClaudeAgentOptions:
     # using `ClaudeSDKClient.rewind_files()`.
     enable_file_checkpointing: bool = False
 
+    # Keepalive mode for multi-turn conversations
+    # When True with ClaudeSDKClient, the Claude process stays alive between
+    # queries until the session is explicitly closed via disconnect() or context
+    # manager exit. This is the default behavior for ClaudeSDKClient.
+    # When True with query(), the process will remain running until all messages
+    # are consumed and the session ends naturally.
+    keepalive: bool = True
+
 
 # SDK Control Protocol
 class SDKControlInterruptRequest(TypedDict):
